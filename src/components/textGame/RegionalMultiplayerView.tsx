@@ -45,6 +45,7 @@ interface RegionalMultiplayerViewProps {
   }) => void;
   onRespondTreaty: (treatyId: string, accept: boolean) => void;
   onSendMessage: (text: string) => void;
+  onShareRoom?: () => void;
 }
 
 export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = ({
@@ -59,15 +60,33 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
   onProposeTreaty,
   onRespondTreaty,
   onSendMessage,
+  onShareRoom,
 }) => {
   const [inputRoom, setInputRoom] = useState(roomId);
   const [chatInput, setChatInput] = useState('');
   const [activeTab, setActiveTab] = useState<'cenario' | 'tratados' | 'chat'>('cenario');
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
 
-  // Filter out self to find neighboring mayor
+  // Filter out self to find neighboring mayor - PRIORITIZE REAL PLAYERS (girlfriend / partner)
   const allMayors = Object.values(otherMayors) as RegionalMayorProfile[];
-  const neighbors = allMayors.filter((m) => m.name !== cityState.mayorName);
-  const neighbor: RegionalMayorProfile | null = neighbors[0] || null;
+  const realPartner = allMayors.find(
+    (m) => m.isRealPlayer && m.name !== cityState.mayorName && m.cityName !== cityState.cityName
+  );
+  const neighbors = allMayors.filter((m) => m.name !== cityState.mayorName && m.cityName !== cityState.cityName);
+  const neighbor: RegionalMayorProfile | null = realPartner || neighbors[0] || null;
+
+  const handleCopyLink = () => {
+    sounds.playClick();
+    const origin = window.location.origin;
+    const pathname = window.location.pathname;
+    const inviteUrl = `${origin}${pathname}?sala=${encodeURIComponent(roomId)}`;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(inviteUrl);
+    }
+    onShareRoom?.();
+    setCopyFeedback('Link copiado! Envie no WhatsApp ou celular da sua namorada para ela entrar direto!');
+    setTimeout(() => setCopyFeedback(null), 5000);
+  };
 
   const handleSendChat = (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,31 +108,64 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
             Multijogador: Integração Entre Prefeitos Vizinhos
           </h2>
           <p className="text-xs md:text-sm text-slate-300 mt-1 max-w-xl leading-relaxed">
-            Conecte dois dispositivos na mesma Região para negociar tratados de turistas,
-            intercâmbio de empregos e venda de energia e petróleo!
+            Conecte dois celulares ou computadores na mesma Sala (<strong className="text-sky-300">{roomId}</strong>) para
+            negociar tratados de turistas, intercâmbio de empregos e cooperação financeira!
           </p>
+
+          {/* Banner de Status de Jogador Real (Namorada/Amigo) */}
+          {realPartner ? (
+            <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-950/80 border border-emerald-500/80 text-emerald-300 text-xs font-bold shadow-md animate-pulse">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]"></span>
+              🎉 Prefeita {realPartner.name} conectou a cidade {realPartner.cityName} nesta sala!
+            </div>
+          ) : (
+            <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-950/60 border border-amber-500/60 text-amber-300 text-xs font-semibold">
+              <Clock className="w-3.5 h-3.5" />
+              Aguardando sua namorada entrar na sala <strong className="text-white underline">{roomId}</strong>. Envie o link abaixo!
+            </div>
+          )}
         </div>
 
-        {/* Input de Código de Região */}
-        <div className="flex items-center gap-2 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-          <input
-            type="text"
-            value={inputRoom}
-            onChange={(e) => setInputRoom(e.target.value.toUpperCase())}
-            placeholder="CÓDIGO (EX: BRASIL1)"
-            className="bg-slate-900 border border-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold text-white uppercase tracking-wider focus:outline-none focus:border-sky-500 w-36"
-          />
+        {/* Controles de Sala e Compartilhamento */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          {/* Botão de Copiar Link da Sala */}
           <button
-            onClick={() => {
-              sounds.playClick();
-              onConnectRoom(inputRoom);
-            }}
-            className="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-lg transition-colors whitespace-nowrap"
+            onClick={handleCopyLink}
+            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 whitespace-nowrap"
+            title="Copiar link para enviar para sua namorada entrar pelo celular"
           >
-            {isConnected ? 'Conectado' : 'Conectar'}
+            <Share2 className="w-4 h-4" />
+            Convidar Namorada / Copiar Link
           </button>
+
+          {/* Input de Código de Região */}
+          <div className="flex items-center gap-2 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
+            <input
+              type="text"
+              value={inputRoom}
+              onChange={(e) => setInputRoom(e.target.value.toUpperCase())}
+              placeholder="SALA (EX: CASAL1)"
+              className="bg-slate-900 border border-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold text-white uppercase tracking-wider focus:outline-none focus:border-sky-500 w-32"
+            />
+            <button
+              onClick={() => {
+                sounds.playClick();
+                onConnectRoom(inputRoom);
+              }}
+              className="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-lg transition-colors whitespace-nowrap"
+            >
+              {isConnected ? 'Entrar' : 'Conectar'}
+            </button>
+          </div>
         </div>
       </div>
+
+      {copyFeedback && (
+        <div className="p-3 bg-emerald-950/90 border border-emerald-500 text-emerald-200 text-xs font-bold rounded-lg shadow-lg flex items-center gap-2 animate-bounce">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+          <span>{copyFeedback}</span>
+        </div>
+      )}
 
       {/* Sub-navegação do Multiplayer */}
       <div className="flex items-center gap-2 border-b border-slate-800 pb-3">

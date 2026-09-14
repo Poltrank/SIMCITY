@@ -101,28 +101,43 @@ const savedGameStates: Record<string, { state: any; savedAt: number; cityName: s
 app.post('/api/game/save', (req, res) => {
   try {
     const { key, state } = req.body;
-    if (!key || !state) {
-      return res.status(400).json({ error: 'Missing key or state' });
+    if (!state) {
+      return res.status(400).json({ error: 'Missing state payload' });
     }
-    const cleanKey = String(key).trim().toLowerCase();
+    const cleanKey = String(key || state.cityName || state.mayorName || 'default_city').trim().toLowerCase();
     savedGameStates[cleanKey] = {
       state,
       savedAt: Date.now(),
       cityName: state.cityName || 'Município',
       mayorName: state.mayorName || 'Prefeito',
     };
-    return res.json({ success: true, savedAt: savedGameStates[cleanKey].savedAt });
+    return res.json({ success: true, savedAt: savedGameStates[cleanKey].savedAt, key: cleanKey });
   } catch (e: any) {
     return res.status(500).json({ error: e.message });
   }
 });
 
-// Load state online
-app.get('/api/game/load/:key', (req, res) => {
-  const cleanKey = String(req.params.key).trim().toLowerCase();
-  const found = savedGameStates[cleanKey];
+// Load state online (supports /api/game/load/:key or /api/game/load?cityName=... or /api/game/load?key=...)
+app.get('/api/game/load/:key?', (req, res) => {
+  const queryParam = req.query.key || req.query.cityName;
+  const keyParam = req.params.key || (typeof queryParam === 'string' ? queryParam : '');
+  const cleanKey = String(keyParam).trim().toLowerCase();
+
+  let found = savedGameStates[cleanKey];
+  if (!found && cleanKey) {
+    // Try finding by city name
+    found = Object.values(savedGameStates).find(
+      (entry) => entry.cityName.toLowerCase() === cleanKey || entry.state?.cityName?.toLowerCase() === cleanKey
+    );
+  }
+
   if (!found) {
-    return res.status(404).json({ error: 'Nenhum jogo salvo online para esta chave.' });
+    // If no specific key found, check if there is any save
+    const firstSave = Object.values(savedGameStates)[0];
+    if (firstSave && !cleanKey) {
+      return res.json({ success: true, ...firstSave });
+    }
+    return res.status(404).json({ success: false, error: 'Nenhum jogo salvo online para esta chave.' });
   }
   return res.json({ success: true, ...found });
 });
@@ -185,6 +200,355 @@ function broadcastToRoom(roomId: string, message: any, excludeWs?: ClientWS) {
   });
 }
 
+// --- HTTP REST ENDPOINTS FOR MULTIPLAYER (ROBUST FALLBACK & COMPATIBILITY) ---
+
+// 1. Join or Reconnect to Room via HTTP
+app.post('/api/multiplayer/join', (req, res) => {
+  try {
+    const { roomId, playerId, playerName, cityName, party, preferredRole, profile } = req.body;
+    if (!playerId) {
+      return res.status(400).json({ error: 'Missing playerId' });
+    }
+    const room = getOrCreateRoom(roomId || 'BRASIL1');
+    const playerIndex = Object.keys(room.players).length;
+    const colorPalette = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f97316'];
+    const assignedColor = colorPalette[playerIndex % colorPalette.length];
+
+    const existingRoles = Object.values(room.players).map((p) => p.role);
+    let assignedRole = `mayor_neighbor_${playerIndex + 1}`;
+    if (!existingRoles.includes('mayor_north')) {
+      assignedRole = 'mayor_north';
+    } else if (!existingRoles.includes('mayor_south')) {
+      assignedRole = 'mayor_south';
+    }
+
+    const role = preferredRole || assignedRole;
+    const player: MayorPlayer = {
+      id: playerId,
+      name: playerName || (role === 'mayor_north' ? 'Prefeito Norte' : role === 'mayor_south' ? 'Prefeito Sul' : `Prefeito Vizinho ${playerIndex + 1}`),
+      cityName: cityName || `Cidade ${playerIndex + 1}`,
+      party: party || 'PARTIDO CIDADÃO',
+      role,
+      color: assignedColor,
+      treasury: profile?.treasury || 25000,
+      population: profile?.population || 150,
+    };
+
+    room.players[playerId] = player;
+
+    if (profile) {
+      room.cityProfiles[playerId] = {
+        ...profile,
+        id: playerId,
+        name: player.name,
+        cityName: player.cityName,
+        role: player.role,
+        isOnline: true,
+        isRealPlayer: true,
+        lastUpdated: Date.now(),
+      };
+    }
+
+    broadcastToRoom(room.id, {
+      type: 'player_joined',
+      player,
+      chatMessage: {
+        id: 'sys_' + Date.now(),
+        sender: 'Sistema',
+        text: `${player.name} (${player.cityName}) conectou-se à região!`,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        role: 'system',
+      },
+    });
+
+    return res.json({
+      success: true,
+      room: {
+        id: room.id,
+        players: room.players,
+        cityProfiles: room.cityProfiles,
+        regionalTreaties: room.regionalTreaties,
+        tradeOffers: room.tradeOffers,
+        chatMessages: room.chatMessages,
+        activeDeals: room.activeDeals,
+        yourPlayer: player,
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. Poll Room State & Heartbeat via HTTP
+app.get('/api/multiplayer/room/:roomId', (req, res) => {
+  try {
+    const room = getOrCreateRoom(req.params.roomId);
+    const playerId = req.query.playerId as string;
+    if (playerId && room.cityProfiles[playerId]) {
+      room.cityProfiles[playerId].lastUpdated = Date.now();
+      room.cityProfiles[playerId].isOnline = true;
+    }
+    // Mark profiles as offline if no ping in 45s (except self)
+    const now = Date.now();
+    Object.values(room.cityProfiles).forEach((p) => {
+      if (p.id !== playerId && now - (p.lastUpdated || 0) > 45000) {
+        p.isOnline = false;
+      }
+    });
+
+    return res.json({
+      success: true,
+      room: {
+        id: room.id,
+        players: room.players,
+        cityProfiles: room.cityProfiles,
+        regionalTreaties: room.regionalTreaties,
+        tradeOffers: room.tradeOffers,
+        chatMessages: room.chatMessages,
+        activeDeals: room.activeDeals,
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. Sync City Profile via HTTP
+app.post('/api/multiplayer/sync', (req, res) => {
+  try {
+    const { roomId, playerId, profile } = req.body;
+    if (!roomId || !playerId || !profile) {
+      return res.status(400).json({ error: 'Missing parameters' });
+    }
+    const room = getOrCreateRoom(roomId);
+    room.cityProfiles[playerId] = {
+      ...profile,
+      id: playerId,
+      isOnline: true,
+      isRealPlayer: true,
+      lastUpdated: Date.now(),
+    };
+    broadcastToRoom(room.id, {
+      type: 'city_profiles_update',
+      cityProfiles: room.cityProfiles,
+    });
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// 4. Send Chat via HTTP
+app.post('/api/multiplayer/chat', (req, res) => {
+  try {
+    const { roomId, sender, role, text } = req.body;
+    if (!roomId || !text) {
+      return res.status(400).json({ error: 'Missing parameters' });
+    }
+    const room = getOrCreateRoom(roomId);
+    const msg = {
+      id: 'msg_' + Date.now(),
+      sender: sender || 'Prefeito',
+      text: text.trim(),
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      role: role || 'mayor',
+    };
+    room.chatMessages.push(msg);
+    if (room.chatMessages.length > 60) room.chatMessages.shift();
+
+    broadcastToRoom(room.id, {
+      type: 'chat_message',
+      message: msg,
+    });
+    return res.json({ success: true, message: msg });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// 5. Propose Treaty via HTTP
+app.post('/api/multiplayer/treaty/propose', (req, res) => {
+  try {
+    const { roomId, treaty } = req.body;
+    if (!roomId || !treaty) {
+      return res.status(400).json({ error: 'Missing parameters' });
+    }
+    const room = getOrCreateRoom(roomId);
+    const now = Date.now();
+    const newTreaty = {
+      ...treaty,
+      id: 'treaty_' + now + '_' + Math.random().toString(36).substr(2, 4),
+      startTime: now,
+      ratificationSecondsRemaining: 60,
+      status: 'pending_ratification',
+      timestamp: now,
+    };
+    room.regionalTreaties.push(newTreaty);
+
+    const sysMsg = {
+      id: 'msg_treaty_' + now,
+      sender: 'Cúpula Regional',
+      text: `📜 NOVA NEGOCIAÇÃO: ${treaty.fromMayorName || 'Prefeito'} propôs o tratado "${newTreaty.title}" para apreciação da Câmara e Gabinete vizinho!`,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      role: 'system',
+    };
+    room.chatMessages.push(sysMsg);
+
+    broadcastToRoom(room.id, {
+      type: 'regional_treaty_proposed',
+      treaty: newTreaty,
+      regionalTreaties: room.regionalTreaties,
+      sysMsg,
+      fromMayorName: treaty.fromMayorName,
+      fromMayorRole: treaty.fromMayorRole,
+      targetMayorRole: treaty.targetMayorRole,
+    });
+
+    return res.json({ success: true, treaty: newTreaty });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// 6. Respond to Treaty via HTTP
+app.post('/api/multiplayer/treaty/respond', (req, res) => {
+  try {
+    const { roomId, treatyId, accept } = req.body;
+    const room = getOrCreateRoom(roomId || 'BRASIL1');
+    const treaty = room.regionalTreaties.find((t) => t.id === treatyId);
+    if (treaty) {
+      treaty.status = accept ? 'active' : 'rejected';
+      const sysMsg = {
+        id: 'msg_sys_' + Date.now(),
+        sender: 'Consórcio Metropolitano',
+        text: accept
+          ? `🏛️ TRATADO RATIFICADO: "${treaty.title}" foi aprovado e entrou em vigor entre as cidades!`
+          : `❌ TRATADO VETADO: "${treaty.title}" foi arquivado pelo Prefeito vizinho.`,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        role: 'system',
+      };
+      room.chatMessages.push(sysMsg);
+
+      broadcastToRoom(room.id, {
+        type: 'regional_treaty_updated',
+        treaty,
+        regionalTreaties: room.regionalTreaties,
+        sysMsg,
+        accepted: accept,
+      });
+      return res.json({ success: true, treaty });
+    }
+    return res.status(404).json({ error: 'Treaty not found' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// 7. Send Direct Aid via HTTP
+app.post('/api/multiplayer/aid', (req, res) => {
+  try {
+    const { roomId, aidEvent } = req.body;
+    const room = getOrCreateRoom(roomId || 'BRASIL1');
+    const event = {
+      id: 'aid_' + Date.now(),
+      fromMayorName: aidEvent.fromMayorName || 'Prefeito Parceiro',
+      fromCityName: aidEvent.fromCityName || 'Município',
+      fromRole: aidEvent.fromRole,
+      targetRole: aidEvent.targetRole,
+      amount: Number(aidEvent.amount) || 0,
+      category: aidEvent.category || 'financeira',
+      note: aidEvent.note || 'Socorro e cooperação mútua metropolitana',
+      timestamp: Date.now(),
+    };
+
+    const sysMsg = {
+      id: 'msg_aid_' + Date.now(),
+      sender: 'Cúpula Metropolitana',
+      text: `🤝 SOCORRO BILATERAL: ${event.fromMayorName} (${event.fromCityName}) transferiu R$ ${event.amount.toLocaleString()} de auxílio para a cidade parceira!`,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      role: 'system',
+    };
+    room.chatMessages.push(sysMsg);
+
+    broadcastToRoom(room.id, {
+      type: 'direct_aid_transferred',
+      aidEvent: event,
+      sysMsg,
+    });
+
+    return res.json({ success: true, aidEvent: event });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// 8. Intermunicipal Loan Propose & Respond via HTTP
+app.post('/api/multiplayer/loan/propose', (req, res) => {
+  try {
+    const { roomId, loan, senderId } = req.body;
+    const room = getOrCreateRoom(roomId || 'BRASIL1');
+    const newLoan = {
+      ...loan,
+      id: 'loan_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+      status: 'pending',
+      timestamp: Date.now(),
+    };
+
+    const sysMsg = {
+      id: 'msg_loan_' + Date.now(),
+      sender: 'Banco de Desenvolvimento Regional',
+      text: `🏛️ PROPOSTA DE EMPRÉSTIMO: O Prefeito ${newLoan.lenderMayor} (${newLoan.lenderCity}) ofereceu crédito de R$ ${Number(newLoan.principal).toLocaleString()} para ${newLoan.borrowerCity}!`,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      role: 'system',
+    };
+    room.chatMessages.push(sysMsg);
+
+    broadcastToRoom(room.id, {
+      type: 'intermunicipal_loan_proposed',
+      loan: newLoan,
+      sysMsg,
+      senderId,
+    });
+
+    return res.json({ success: true, loan: newLoan });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/multiplayer/loan/respond', (req, res) => {
+  try {
+    const { roomId, loan, accept } = req.body;
+    const room = getOrCreateRoom(roomId || 'BRASIL1');
+    const updatedLoan = {
+      ...loan,
+      status: accept ? 'active' : 'rejected',
+    };
+
+    const sysMsg = {
+      id: 'msg_loan_resp_' + Date.now(),
+      sender: 'Consórcio Metropolitano',
+      text: accept
+        ? `✅ EMPRÉSTIMO APROVADO: O Prefeito ${updatedLoan.borrowerMayor} (${updatedLoan.borrowerCity}) aceitou o crédito de R$ ${Number(updatedLoan.principal).toLocaleString()}!`
+        : `❌ EMPRÉSTIMO RECUSADO: A proposta entre ${updatedLoan.lenderCity} e ${updatedLoan.borrowerCity} foi recusada.`,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      role: 'system',
+    };
+    room.chatMessages.push(sysMsg);
+
+    broadcastToRoom(room.id, {
+      type: 'intermunicipal_loan_updated',
+      loan: updatedLoan,
+      sysMsg,
+      accepted: accept,
+    });
+
+    return res.json({ success: true, loan: updatedLoan });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 wss.on('connection', (ws: ClientWS) => {
   ws.isAlive = true;
 
@@ -227,6 +591,19 @@ wss.on('connection', (ws: ClientWS) => {
         };
 
         room.players[playerId] = newPlayer;
+
+        // Immediately register city profile for the joining player
+        room.cityProfiles[playerId] = {
+          ...(data.profile || {}),
+          id: playerId,
+          name: newPlayer.name,
+          cityName: newPlayer.cityName,
+          role: newPlayer.role,
+          color: newPlayer.color,
+          isOnline: true,
+          isRealPlayer: true,
+          lastUpdated: Date.now(),
+        };
 
         // Send full room state to joined player
         ws.send(
@@ -398,6 +775,8 @@ wss.on('connection', (ws: ClientWS) => {
           room.cityProfiles[ws.playerId] = {
             ...data.profile,
             id: ws.playerId,
+            isOnline: true,
+            isRealPlayer: true,
             lastUpdated: Date.now(),
           };
 

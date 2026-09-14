@@ -129,10 +129,11 @@ export default function App() {
   const saveStateOnline = useCallback(async (stateToSave: PrefeitoCityState) => {
     setIsSavingOnline(true);
     try {
+      const cleanKey = stateToSave.cityName ? stateToSave.cityName.trim().toLowerCase() : 'default_city';
       await fetch('/api/game/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ state: stateToSave }),
+        body: JSON.stringify({ key: cleanKey, state: stateToSave }),
       });
     } catch (e) {
       console.error('Online auto-save error:', e);
@@ -160,13 +161,16 @@ export default function App() {
   useEffect(() => {
     const fetchOnlineSavedState = async () => {
       try {
-        const res = await fetch(`/api/game/load?cityName=${encodeURIComponent(cityState.cityName)}`);
-        const data = await res.json();
-        if (data.success && data.state) {
-          console.log('Online save state restored for city:', data.state.cityName);
+        const cleanKey = cityState.cityName ? encodeURIComponent(cityState.cityName.trim().toLowerCase()) : 'default_city';
+        const res = await fetch(`/api/game/load/${cleanKey}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.state) {
+            console.log('Online save state verified for city:', data.cityName || data.state?.cityName);
+          }
         }
       } catch (e) {
-        console.error('Failed to fetch online save:', e);
+        console.warn('Online save fetch checked (fallback to local state):', e);
       }
     };
     fetchOnlineSavedState();
@@ -437,6 +441,11 @@ export default function App() {
         onOpenLoansModal={() => setIsLoansModalOpen(true)}
         isSavingOnline={isSavingOnline}
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
+        roomId={multiplayer.roomId}
+        partnerName={multiplayer.partnerMayor?.name}
+        partnerCityName={multiplayer.partnerMayor?.cityName}
+        isPartnerOnline={multiplayer.isPartnerOnline}
+        onShareRoom={multiplayer.shareRoomLink}
       />
 
       {/* Conteúdo Principal */}
@@ -500,6 +509,7 @@ export default function App() {
             onProposeTreaty={multiplayer.proposeTreaty}
             onRespondTreaty={multiplayer.respondToTreaty}
             onSendMessage={multiplayer.sendChatMessage}
+            onShareRoom={multiplayer.shareRoomLink}
           />
         )}
 

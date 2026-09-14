@@ -90,10 +90,31 @@ export function useTextMultiplayer(
   cityState: PrefeitoCityState,
   options?: UseTextMultiplayerOptions
 ) {
-  const [roomId, setRoomId] = useState<string>('BRASIL1');
+  // Read initial room from URL params (?sala=... or ?room=... or ?r=...) or default to BRASIL1
+  const [roomId, setRoomId] = useState<string>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlRoom = params.get('sala') || params.get('room') || params.get('r');
+      if (urlRoom && urlRoom.trim()) {
+        return urlRoom.toUpperCase().trim();
+      }
+    } catch (e) {}
+    return 'BRASIL1';
+  });
+
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [myRole, setMyRole] = useState<'mayor_north' | 'mayor_south' | 'spectator'>('mayor_north');
-  const [myPlayerId, setMyPlayerId] = useState<string>('');
+
+  // Synchronously initialize player ID so it is never empty on first connect
+  const [myPlayerId, setMyPlayerId] = useState<string>(() => {
+    let pid = localStorage.getItem('prefeito_player_id');
+    if (!pid) {
+      pid = 'may_' + Math.random().toString(36).substr(2, 8);
+      localStorage.setItem('prefeito_player_id', pid);
+    }
+    return pid;
+  });
+
   const [otherMayors, setOtherMayors] = useState<Record<string, RegionalMayorProfile>>(DEFAULT_NEIGHBORING_MAYORS);
   const [treaties, setTreaties] = useState<RegionalTreaty[]>([]);
   const [chatMessages, setChatMessages] = useState<RegionalChatMessage[]>([]);
@@ -105,49 +126,159 @@ export function useTextMultiplayer(
 
   const wsRef = useRef<WebSocket | null>(null);
   const pingIntervalRef = useRef<number | null>(null);
+  const activeRoomRef = useRef<string>(roomId);
+  activeRoomRef.current = roomId;
 
-  // Initialize or load player ID
-  useEffect(() => {
-    let pid = localStorage.getItem('prefeito_player_id');
-    if (!pid) {
-      pid = 'may_' + Math.random().toString(36).substr(2, 8);
-      localStorage.setItem('prefeito_player_id', pid);
-    }
-    setMyPlayerId(pid);
+  // Helper to build city profile payload
+  const buildProfilePayload = useCallback((state: PrefeitoCityState, role: string, pid: string): RegionalMayorProfile => {
+    return {
+      id: pid,
+      name: state.mayorName || 'Prefeito',
+      cityName: state.cityName || 'Município',
+      role: role || 'mayor_north',
+      party: state.party,
+      color: role === 'mayor_north' ? '#3b82f6' : '#10b981',
+      population: state.population,
+      treasury: state.treasury,
+      jobs: state.jobs,
+      unemploymentRate: state.unemploymentRate,
+      touristsPerMonth: state.touristsPerMonth,
+      oilProductionBpd: state.oilProductionBpd,
+      goldProductionKg: state.goldProductionKg,
+      energyProductionMw: state.energyProductionMw,
+      energySurplusMw: state.energySurplusMw,
+      fiscalRating: state.fiscalRating,
+      approvalRating: state.approvalRating,
+      isOnline: true,
+      isRealPlayer: true,
+      lastUpdated: Date.now(),
+    };
   }, []);
+
+  // HTTP Polling fallback - Guarantees synchronization even on mobile/proxy where WebSocket may fail
+  const pollRoomHttp = useCallback(async (targetRoom: string, pid: string) => {
+    try {
+      const res = await fetch(`/api/multiplayer/room/${encodeURIComponent(targetRoom)}?playerId=${encodeURIComponent(pid)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.room) {
+          setIsConnected(true);
+          if (data.room.cityProfiles) {
+            setOtherMayors((prev) => ({
+              ...DEFAULT_NEIGHBORING_MAYORS,
+              ...prev,
+              ...data.room.cityProfiles,
+            }));
+          }
+          if (data.room.regionalTreaties) {
+            setTreaties(data.room.regionalTreaties);
+          }
+          if (data.room.chatMessages) {
+            setChatMessages(data.room.chatMessages);
+          }
+        }
+      }
+    } catch (e) {
+      // Background poll silently continues
+    }
+  }, []);
+
+  // HTTP Join - Establishes presence on the server immediately
+  const joinRoomHttp = useCallback(async (cleanRoom: string, pid: string, state: PrefeitoCityState) => {
+    try {
+      const profile = buildProfilePayload(state, myRole, pid);
+      const res = await fetch('/api/multiplayer/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomId: cleanRoom,
+          playerId: pid,
+          playerName: state.mayorName,
+          cityName: state.cityName,
+          party: state.party,
+          profile,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.room) {
+          setIsConnected(true);
+          if (data.yourPlayer) {
+            setMyRole(data.yourPlayer.role);
+          }
+          if (data.room.cityProfiles) {
+            setOtherMayors((prev) => ({
+              ...DEFAULT_NEIGHBORING_MAYORS,
+              ...prev,
+              ...data.room.cityProfiles,
+            }));
+          }
+          if (data.room.regionalTreaties) {
+            setTreaties(data.room.regionalTreaties);
+          }
+          if (data.room.chatMessages) {
+            setChatMessages(data.room.chatMessages);
+          }
+        }
+      }
+    } catch (e) {
+      // Ignore initial network lag
+    }
+  }, [buildProfilePayload, myRole]);
 
   const connectToRoom = useCallback(
     (targetRoomId: string) => {
       if (wsRef.current) {
-        wsRef.current.close();
+        try {
+          wsRef.current.close();
+        } catch (e) {}
       }
 
       const cleanRoom = targetRoomId.toUpperCase().trim() || 'BRASIL1';
       setRoomId(cleanRoom);
+      activeRoomRef.current = cleanRoom;
 
+      // Update URL with current room for easy sharing with partner
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('sala', cleanRoom);
+        window.history.replaceState({}, '', url.toString());
+      } catch (e) {}
+
+      // Immediately register via HTTP REST (instant feedback & mobile fallback)
+      joinRoomHttp(cleanRoom, myPlayerId, cityState);
+
+      // Connect via WebSocket for real-time live events
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const wsUrl = `${protocol}//${window.location.host}/api/multiplayer`;
-      const ws = new WebSocket(wsUrl);
+      let ws: WebSocket;
+      try {
+        ws = new WebSocket(wsUrl);
+      } catch (err) {
+        console.warn('WebSocket init failed, relying on HTTP polling:', err);
+        return;
+      }
       wsRef.current = ws;
 
       ws.onopen = () => {
         setIsConnected(true);
-        const pid = myPlayerId || 'may_' + Math.random().toString(36).substr(2, 6);
+        const profile = buildProfilePayload(cityState, myRole, myPlayerId);
 
         // Join room
         ws.send(
           JSON.stringify({
             type: 'join_room',
             roomId: cleanRoom,
-            playerId: pid,
+            playerId: myPlayerId,
             playerName: cityState.mayorName,
+            cityName: cityState.cityName,
+            party: cityState.party,
+            profile,
           })
         );
 
-        // Sync initial city profile
-        syncCityProfileToWs(ws, pid, cityState);
-
         // Keep-alive ping
+        if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
         pingIntervalRef.current = window.setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'ping' }));
@@ -406,10 +537,32 @@ export function useTextMultiplayer(
     }
   };
 
-  // Keep city profile synced on city changes
+  // Sync city profile via HTTP REST
+  const syncCityProfileHttp = useCallback(
+    async (room: string, pid: string, state: PrefeitoCityState) => {
+      try {
+        const profile = buildProfilePayload(state, myRole, pid);
+        await fetch('/api/multiplayer/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            roomId: room,
+            playerId: pid,
+            profile,
+          }),
+        });
+      } catch (e) {}
+    },
+    [buildProfilePayload, myRole]
+  );
+
+  // Keep city profile synced on city changes (both WebSocket and HTTP)
   useEffect(() => {
-    if (wsRef.current && isConnected && myPlayerId) {
-      syncCityProfileToWs(wsRef.current, myPlayerId, cityState);
+    if (myPlayerId) {
+      if (wsRef.current && isConnected) {
+        syncCityProfileToWs(wsRef.current, myPlayerId, cityState);
+      }
+      syncCityProfileHttp(activeRoomRef.current, myPlayerId, cityState);
     }
   }, [
     cityState.population,
@@ -421,18 +574,25 @@ export function useTextMultiplayer(
     cityState.approvalRating,
     isConnected,
     myPlayerId,
+    syncCityProfileHttp,
   ]);
 
-  // Auto-connect to shared multiplayer region on mount and keep connected
+  // Auto-connect to initial room on mount and run background heartbeat / poll
   useEffect(() => {
-    connectToRoom('BRASIL1');
-    const autoReconn = setInterval(() => {
+    connectToRoom(activeRoomRef.current);
+
+    // Fast polling fallback: keeps players in sync even if WebSocket is disconnected or throttled on mobile
+    const pollInterval = setInterval(() => {
+      pollRoomHttp(activeRoomRef.current, myPlayerId);
+
+      // If WebSocket died, attempt reconnection to current room
       if (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED) {
-        connectToRoom('BRASIL1');
+        connectToRoom(activeRoomRef.current);
       }
-    }, 10000);
-    return () => clearInterval(autoReconn);
-  }, [connectToRoom]);
+    }, 2500);
+
+    return () => clearInterval(pollInterval);
+  }, [connectToRoom, pollRoomHttp, myPlayerId]);
 
   // Ratification countdown timer for pending treaties (60 seconds)
   useEffect(() => {
@@ -468,7 +628,7 @@ export function useTextMultiplayer(
     return () => clearInterval(timer);
   }, []);
 
-  // Propose a regional treaty (Takes 60s for cartório ratification!)
+  // Propose a regional treaty (dispatches to WS and HTTP)
   const proposeTreaty = useCallback(
     (treatyDraft: {
       type: RegionalTreaty['type'];
@@ -504,7 +664,7 @@ export function useTextMultiplayer(
 
       setTreaties((prev) => [newTreaty, ...prev]);
 
-      if (wsRef.current && isConnected) {
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         wsRef.current.send(
           JSON.stringify({
             type: 'propose_regional_treaty',
@@ -514,72 +674,141 @@ export function useTextMultiplayer(
           })
         );
       }
+
+      // Also send via HTTP REST
+      fetch('/api/multiplayer/treaty/propose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomId,
+          treaty: newTreaty,
+        }),
+      }).catch(() => {});
     },
-    [isConnected, myRole, cityState, roomId, myPlayerId]
+    [myRole, cityState, roomId, myPlayerId]
   );
 
+  // Respond to a treaty (dispatches to WS and HTTP)
   const respondToTreaty = useCallback(
     (treatyId: string, accept: boolean) => {
-      if (!wsRef.current || !isConnected) return;
       if (accept) {
         sounds.playStamp();
       } else {
         sounds.playAlert();
       }
 
-      wsRef.current.send(
-        JSON.stringify({
-          type: 'respond_regional_treaty',
+      setTreaties((prev) =>
+        prev.map((t) => (t.id === treatyId ? { ...t, status: accept ? 'active' : 'rejected' } : t))
+      );
+
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(
+          JSON.stringify({
+            type: 'respond_regional_treaty',
+            roomId,
+            treatyId,
+            accept,
+          })
+        );
+      }
+
+      // Also send via HTTP REST
+      fetch('/api/multiplayer/treaty/respond', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           roomId,
           treatyId,
           accept,
-        })
-      );
+        }),
+      }).catch(() => {});
     },
-    [isConnected, roomId]
+    [roomId]
   );
 
+  // Send chat message (dispatches to WS and HTTP)
   const sendChatMessage = useCallback(
     (text: string) => {
-      if (!wsRef.current || !isConnected || !text.trim()) return;
+      if (!text.trim()) return;
 
-      wsRef.current.send(
-        JSON.stringify({
-          type: 'chat_message',
+      const senderName = `${cityState.mayorName} (${cityState.cityName})`;
+      const localMsg: RegionalChatMessage = {
+        id: 'msg_local_' + Date.now(),
+        sender: senderName,
+        role: myRole,
+        text: text.trim(),
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+      setChatMessages((prev) => [...prev, localMsg]);
+
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(
+          JSON.stringify({
+            type: 'chat_message',
+            roomId,
+            sender: senderName,
+            role: myRole,
+            text: text.trim(),
+          })
+        );
+      }
+
+      // Also send via HTTP REST
+      fetch('/api/multiplayer/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           roomId,
-          sender: `${cityState.mayorName} (${cityState.cityName})`,
+          sender: senderName,
           role: myRole,
           text: text.trim(),
-        })
-      );
+        }),
+      }).catch(() => {});
     },
-    [isConnected, roomId, cityState, myRole]
+    [roomId, cityState, myRole]
   );
 
+  // Direct Aid (dispatches to WS and HTTP)
   const sendDirectAid = useCallback(
     (amount: number, category: 'financeira' | 'energia' | 'agua' = 'financeira', note?: string) => {
-      if (!wsRef.current || !isConnected || amount <= 0) return;
+      if (amount <= 0) return;
       sounds.playCash();
 
       const targetRole = myRole === 'mayor_north' ? 'mayor_south' : 'mayor_north';
+      const aidEvent = {
+        fromMayorName: cityState.mayorName,
+        fromCityName: cityState.cityName,
+        fromRole: myRole,
+        targetRole,
+        amount,
+        category,
+        note: note || 'Cooperação intermunicipal emergencial',
+      };
 
-      wsRef.current.send(
-        JSON.stringify({
-          type: 'direct_aid_transfer',
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(
+          JSON.stringify({
+            type: 'direct_aid_transfer',
+            roomId,
+            ...aidEvent,
+          })
+        );
+      }
+
+      // Also send via HTTP REST
+      fetch('/api/multiplayer/aid', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           roomId,
-          fromMayorName: cityState.mayorName,
-          fromCityName: cityState.cityName,
-          fromRole: myRole,
-          targetRole,
-          amount,
-          category,
-          note: note || 'Cooperação intermunicipal emergencial',
-        })
-      );
+          aidEvent,
+        }),
+      }).catch(() => {});
     },
-    [isConnected, myRole, cityState, roomId]
+    [myRole, cityState, roomId]
   );
 
+  // Propose Loan (dispatches to WS and HTTP)
   const proposeLoan = useCallback(
     (loanData: {
       borrowerMayor: string;
@@ -589,10 +818,10 @@ export function useTextMultiplayer(
       totalInstallments: number;
       purpose: string;
     }) => {
-      if (!wsRef.current || !isConnected || loanData.principal <= 0) return;
+      if (loanData.principal <= 0) return;
       sounds.playStamp();
 
-      const totalInterest = (loanData.principal * (loanData.interestRateMonthly / 100)) * loanData.totalInstallments;
+      const totalInterest = loanData.principal * (loanData.interestRateMonthly / 100) * loanData.totalInstallments;
       const totalRepayment = Math.round(loanData.principal + totalInterest);
       const installmentValue = Math.round(totalRepayment / loanData.totalInstallments);
 
@@ -615,20 +844,33 @@ export function useTextMultiplayer(
         status: 'pending',
       };
 
-      wsRef.current.send(
-        JSON.stringify({
-          type: 'propose_intermunicipal_loan',
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(
+          JSON.stringify({
+            type: 'propose_intermunicipal_loan',
+            roomId,
+            loan,
+          })
+        );
+      }
+
+      // Also send via HTTP REST
+      fetch('/api/multiplayer/loan/propose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           roomId,
           loan,
-        })
-      );
+          senderId: myPlayerId,
+        }),
+      }).catch(() => {});
     },
-    [isConnected, cityState, roomId]
+    [cityState, roomId, myPlayerId]
   );
 
+  // Respond to Loan (dispatches to WS and HTTP)
   const respondToLoan = useCallback(
     (loan: IntermunicipalLoan | string, accept: boolean) => {
-      if (!wsRef.current || !isConnected) return;
       if (accept) {
         sounds.playStamp();
       } else {
@@ -637,16 +879,29 @@ export function useTextMultiplayer(
 
       const loanObj = typeof loan === 'string' ? { id: loan } : loan;
 
-      wsRef.current.send(
-        JSON.stringify({
-          type: 'respond_intermunicipal_loan',
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(
+          JSON.stringify({
+            type: 'respond_intermunicipal_loan',
+            roomId,
+            loan: loanObj,
+            accept,
+          })
+        );
+      }
+
+      // Also send via HTTP REST
+      fetch('/api/multiplayer/loan/respond', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           roomId,
           loan: loanObj,
           accept,
-        })
-      );
+        }),
+      }).catch(() => {});
     },
-    [isConnected, roomId]
+    [roomId]
   );
 
   const dismissAlertNotification = useCallback(() => {
@@ -658,12 +913,33 @@ export function useTextMultiplayer(
     setActiveAlertNotification(null);
   }, []);
 
+  // Helper to share invite link with partner/girlfriend
+  const shareRoomLink = useCallback(() => {
+    const origin = window.location.origin;
+    const pathname = window.location.pathname;
+    const url = `${origin}${pathname}?sala=${encodeURIComponent(roomId)}`;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).catch(() => {});
+    }
+    return url;
+  }, [roomId]);
+
+  // Identify connected real players (e.g. girlfriend, friend)
+  const realPlayers: RegionalMayorProfile[] = (Object.values(otherMayors) as RegionalMayorProfile[]).filter(
+    (m: RegionalMayorProfile) => m.id !== myPlayerId && m.isRealPlayer
+  );
+  const partnerMayor: RegionalMayorProfile | null = realPlayers.length > 0 ? realPlayers[0] : null;
+  const isPartnerOnline = partnerMayor ? partnerMayor.isOnline !== false : false;
+
   return {
     roomId,
     isConnected,
     myRole,
     myPlayerId,
     otherMayors,
+    partnerMayor,
+    isPartnerOnline,
+    realPlayers,
     treaties,
     chatMessages,
     activeTab,
@@ -681,5 +957,6 @@ export function useTextMultiplayer(
     sendDirectAid,
     proposeLoan,
     respondToLoan,
+    shareRoomLink,
   };
 }

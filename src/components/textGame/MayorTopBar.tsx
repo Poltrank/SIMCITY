@@ -43,6 +43,11 @@ interface MayorTopBarProps {
   onOpenLoansModal?: () => void;
   isSavingOnline?: boolean;
   onOpenAuthModal?: () => void;
+  roomId?: string;
+  partnerName?: string;
+  partnerCityName?: string;
+  isPartnerOnline?: boolean;
+  onShareRoom?: () => void;
 }
 
 export const MayorTopBar: React.FC<MayorTopBarProps> = ({
@@ -58,6 +63,11 @@ export const MayorTopBar: React.FC<MayorTopBarProps> = ({
   onOpenLoansModal,
   isSavingOnline,
   onOpenAuthModal,
+  roomId = 'BRASIL1',
+  partnerName,
+  partnerCityName,
+  isPartnerOnline,
+  onShareRoom,
 }) => {
   const getRatingBadge = (rating: string) => {
     switch (rating) {
@@ -448,23 +458,45 @@ export const MayorTopBar: React.FC<MayorTopBarProps> = ({
             Simular Ocorrência
           </button>
 
-          <button
-            onClick={() => {
-              setActiveView('regional');
-              sounds.playClick();
-            }}
-            className={`px-3 py-2 rounded-md text-xs md:text-sm font-semibold flex items-center gap-2 transition-all whitespace-nowrap ml-auto ${
-              activeView === 'regional'
-                ? 'bg-sky-500 text-slate-950 shadow-md font-bold'
-                : 'text-sky-400 bg-sky-950/40 hover:bg-sky-900/60 border border-sky-800/60'
-            }`}
-          >
-            <Radio className="w-4 h-4 animate-pulse" />
-            Multijogador Regional
-            {isMultiplayerConnected && (
-              <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]"></span>
-            )}
-          </button>
+          {/* Botão Multijogador Regional com Sala & Status de Parceiro */}
+          <div className="flex items-center gap-1.5 ml-auto">
+            {partnerName ? (
+              <button
+                onClick={() => {
+                  setActiveView('regional');
+                  sounds.playClick();
+                }}
+                className={`px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all whitespace-nowrap ${
+                  isPartnerOnline !== false
+                    ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/80 shadow-[0_0_10px_rgba(16,185,129,0.2)] hover:bg-emerald-900/90 animate-pulse'
+                    : 'bg-slate-800 text-slate-300 border border-slate-700'
+                }`}
+                title={`Parceiro(a) detectado(a) na sala ${roomId}: ${partnerName} (${partnerCityName || 'Município'})`}
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]"></span>
+                <span>Prefeita: <strong className="text-white">{partnerName}</strong> ({partnerCityName})</span>
+              </button>
+            ) : null}
+
+            <button
+              onClick={() => {
+                setActiveView('regional');
+                sounds.playClick();
+              }}
+              className={`px-3 py-2 rounded-md text-xs md:text-sm font-semibold flex items-center gap-2 transition-all whitespace-nowrap ${
+                activeView === 'regional'
+                  ? 'bg-sky-500 text-slate-950 shadow-md font-bold'
+                  : 'text-sky-400 bg-sky-950/40 hover:bg-sky-900/60 border border-sky-800/60'
+              }`}
+              title={`Região Multijogador: Sala ${roomId}`}
+            >
+              <Radio className="w-4 h-4 animate-pulse" />
+              Multijogador ({roomId})
+              {isMultiplayerConnected && (
+                <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]"></span>
+              )}
+            </button>
+          </div>
 
           {/* Status Salvo Online */}
           <div

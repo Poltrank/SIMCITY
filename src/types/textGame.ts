@@ -356,6 +356,7 @@ export interface RegionalMayorProfile {
   fiscalRating: FiscalRating;
   approvalRating: number;
   isOnline?: boolean;
+  isRealPlayer?: boolean;
   lastUpdated: number;
 }
 

@@ -21,6 +21,7 @@ import {
   ArrowRight,
   Landmark,
   MessageSquare,
+  Share2,
 } from 'lucide-react';
 import {
   PrefeitoCityState,
@@ -68,9 +69,15 @@ export const MayorNegotiationsView: React.FC<MayorNegotiationsViewProps> = ({
   onSendDirectAid,
   onOpenLoansModal,
 }) => {
-  const mayorsList = Object.values(otherMayors).filter(
-    (m) => m.name !== cityState.mayorName && m.cityName !== cityState.cityName
+  const rawList = (Object.values(otherMayors) as RegionalMayorProfile[]).filter(
+    (m: RegionalMayorProfile) => m.name !== cityState.mayorName && m.cityName !== cityState.cityName
   );
+  // Sort so real players (e.g. girlfriend / partner) appear first!
+  const mayorsList: RegionalMayorProfile[] = [...rawList].sort((a: RegionalMayorProfile, b: RegionalMayorProfile) => {
+    if (a.isRealPlayer && !b.isRealPlayer) return -1;
+    if (!a.isRealPlayer && b.isRealPlayer) return 1;
+    return 0;
+  });
 
   const [selectedMayorId, setSelectedMayorId] = useState<string>(
     mayorsList[0]?.id || 'may_serra_alta'
@@ -81,12 +88,30 @@ export const MayorNegotiationsView: React.FC<MayorNegotiationsViewProps> = ({
   >('todos');
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
+  // Auto-switch to real player when they join
+  React.useEffect(() => {
+    const realPartner = mayorsList.find((m: RegionalMayorProfile) => m.isRealPlayer);
+    if (realPartner && (!otherMayors[selectedMayorId] || !otherMayors[selectedMayorId].isRealPlayer)) {
+      setSelectedMayorId(realPartner.id);
+    }
+  }, [mayorsList, otherMayors, selectedMayorId]);
+
   const selectedMayor: RegionalMayorProfile | undefined =
     otherMayors[selectedMayorId] || mayorsList[0];
 
   const triggerToast = (msg: string) => {
     setSuccessToast(msg);
     setTimeout(() => setSuccessToast(null), 4000);
+  };
+
+  const handleCopyInvite = () => {
+    const origin = window.location.origin;
+    const pathname = window.location.pathname;
+    const inviteUrl = `${origin}${pathname}?sala=${encodeURIComponent(roomId || 'BRASIL1')}`;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(inviteUrl);
+    }
+    triggerToast('Link copiado! Envie no celular da sua namorada para ela entrar direto nesta sala!');
   };
 
   const handleSendChat = (e: React.FormEvent) => {
@@ -135,7 +160,16 @@ export const MayorNegotiationsView: React.FC<MayorNegotiationsViewProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-3 self-start md:self-center">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 self-start md:self-center">
+          <button
+            onClick={handleCopyInvite}
+            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition-all shadow-md flex items-center gap-1.5 whitespace-nowrap"
+            title="Copiar link da sala para jogar junto com sua namorada ou amigo"
+          >
+            <Share2 className="w-4 h-4" />
+            Convidar Namorada (Copiar Link)
+          </button>
+
           <div className="bg-slate-950 px-3 py-2 rounded-xl border border-slate-800 text-xs">
             <span className="text-[10px] uppercase font-bold text-slate-400 block">Região Compartilhada</span>
             <div className="flex items-center gap-2">
@@ -172,14 +206,24 @@ export const MayorNegotiationsView: React.FC<MayorNegotiationsViewProps> = ({
                 className={`p-4 rounded-xl border text-left transition-all relative overflow-hidden ${
                   isSelected
                     ? 'bg-slate-850 border-amber-500/80 shadow-lg ring-1 ring-amber-500/50'
+                    : m.isRealPlayer
+                    ? 'bg-emerald-950/30 border-emerald-500/60 hover:border-emerald-400'
                     : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 hover:bg-slate-900/60'
                 }`}
               >
-                {isSelected && (
-                  <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500 text-slate-950">
-                    Em Negociação
-                  </span>
-                )}
+                <div className="absolute top-2 right-2 flex items-center gap-1">
+                  {m.isRealPlayer && (
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500 text-slate-950 flex items-center gap-1 animate-pulse">
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-950"></span>
+                      Namorada / Jogador Real
+                    </span>
+                  )}
+                  {isSelected && (
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500 text-slate-950">
+                      Em Negociação
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-3 mb-2">
                   <div
                     className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-base shadow-sm text-slate-950"
