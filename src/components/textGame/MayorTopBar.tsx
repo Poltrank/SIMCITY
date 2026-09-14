@@ -19,18 +19,26 @@ import {
   Building2,
   Sliders,
   Clock,
+  Trophy,
+  AlertTriangle,
+  CloudCheck,
+  PlusCircle,
 } from 'lucide-react';
 import { PrefeitoCityState } from '../../types/textGame';
 import { sounds } from '../../audio/soundManager';
 
 interface MayorTopBarProps {
   state: PrefeitoCityState;
-  activeView: 'mesa' | 'secretarias' | 'politicas' | 'gazeta' | 'financas' | 'regional';
-  setActiveView: (view: 'mesa' | 'secretarias' | 'politicas' | 'gazeta' | 'financas' | 'regional') => void;
+  activeView: 'mesa' | 'secretarias' | 'politicas' | 'gazeta' | 'financas' | 'regional' | 'ranking';
+  setActiveView: (view: 'mesa' | 'secretarias' | 'politicas' | 'gazeta' | 'financas' | 'regional' | 'ranking') => void;
   isMuted: boolean;
   toggleMute: () => void;
   isMultiplayerConnected: boolean;
   pendingDispatchesCount: number;
+  onOpenEmergencyModal?: () => void;
+  onTriggerRandomEmergency?: () => void;
+  onOpenLoansModal?: () => void;
+  isSavingOnline?: boolean;
 }
 
 export const MayorTopBar: React.FC<MayorTopBarProps> = ({
@@ -41,6 +49,10 @@ export const MayorTopBar: React.FC<MayorTopBarProps> = ({
   toggleMute,
   isMultiplayerConnected,
   pendingDispatchesCount,
+  onOpenEmergencyModal,
+  onTriggerRandomEmergency,
+  onOpenLoansModal,
+  isSavingOnline,
 }) => {
   const getRatingBadge = (rating: string) => {
     switch (rating) {
@@ -329,6 +341,60 @@ export const MayorTopBar: React.FC<MayorTopBarProps> = ({
 
           <button
             onClick={() => {
+              setActiveView('ranking');
+              sounds.playClick();
+            }}
+            className={`px-3 py-2 rounded-md text-xs md:text-sm font-semibold flex items-center gap-2 transition-all whitespace-nowrap ${
+              activeView === 'ranking'
+                ? 'bg-amber-500 text-slate-950 shadow-md font-bold'
+                : 'text-amber-400 bg-amber-950/30 hover:bg-amber-900/50 border border-amber-800/40'
+            }`}
+          >
+            <Trophy className="w-4 h-4" />
+            Ranking & Painel Econômico
+          </button>
+
+          <button
+            onClick={() => {
+              sounds.playClick();
+              onOpenLoansModal?.();
+            }}
+            className="px-3 py-2 rounded-md text-xs md:text-sm font-semibold flex items-center gap-2 transition-all whitespace-nowrap text-indigo-300 bg-indigo-950/40 hover:bg-indigo-900/60 border border-indigo-800/50"
+          >
+            <Landmark className="w-4 h-4" />
+            Empréstimos
+          </button>
+
+          {/* Ocorrência Ativa de Emergência (Alerta Pulsante) */}
+          {state.activeEmergencyEvent && (
+            <button
+              onClick={() => {
+                sounds.playAlert();
+                onOpenEmergencyModal?.();
+              }}
+              className="px-3 py-1.5 rounded-md text-xs font-black bg-rose-600 hover:bg-rose-500 text-white animate-pulse flex items-center gap-1.5 shadow-lg border border-rose-400"
+              title="Clique para deliberar sobre a ocorrência crítica"
+            >
+              <AlertTriangle className="w-3.5 h-3.5" />
+              🚨 Ocorrência Ativa: {state.activeEmergencyEvent.title}
+            </button>
+          )}
+
+          {/* Botão de Simular Ocorrência sob Demanda */}
+          <button
+            onClick={() => {
+              sounds.playClick();
+              onTriggerRandomEmergency?.();
+            }}
+            className="px-2.5 py-1.5 rounded-md text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1 transition-colors"
+            title="Simular chamado ou crise emergencial para movimentar a gestão"
+          >
+            <PlusCircle className="w-3.5 h-3.5 text-amber-400" />
+            Simular Ocorrência
+          </button>
+
+          <button
+            onClick={() => {
               setActiveView('regional');
               sounds.playClick();
             }}
@@ -344,6 +410,15 @@ export const MayorTopBar: React.FC<MayorTopBarProps> = ({
               <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]"></span>
             )}
           </button>
+
+          {/* Status Salvo Online */}
+          <div
+            className="hidden sm:flex items-center gap-1 px-2 py-1 rounded text-[10px] font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-800/60"
+            title="Todas as decisões e tesouro são salvos automaticamente online no servidor"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            {isSavingOnline ? 'Salvando online...' : 'Online & Salvo'}
+          </div>
         </div>
       </nav>
     </header>

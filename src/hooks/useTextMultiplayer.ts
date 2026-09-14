@@ -6,6 +6,7 @@ import {
   RegionalChatMessage,
   NegotiationNotification,
   DirectAidEvent,
+  IntermunicipalLoan,
 } from '../types/textGame';
 import { sounds } from '../audio/soundManager';
 
@@ -13,6 +14,10 @@ interface UseTextMultiplayerOptions {
   onReceiveDirectAid?: (amount: number, fromMayor: string, fromCity: string) => void;
   onTreatyProposed?: (treaty: RegionalTreaty) => void;
   onTreatyRatified?: (treaty: RegionalTreaty) => void;
+  onLoanProposed?: (loan: IntermunicipalLoan) => void;
+  onLoanResponded?: (loanId: string, accepted: boolean) => void;
+  onLoanAccepted?: (loan: IntermunicipalLoan) => void;
+  onLoanRejected?: (loanId: string) => void;
 }
 
 export function useTextMultiplayer(
@@ -222,6 +227,60 @@ export function useTextMultiplayer(
               sounds.playTick();
             }
           }
+
+          if (data.type === 'intermunicipal_loan_proposed') {
+            if (data.sysMsg) {
+              setChatMessages((prev) => [...prev, data.sysMsg]);
+            }
+            const loan: IntermunicipalLoan = data.loan;
+            if (loan && data.senderId !== myPlayerId) {
+              const notif: NegotiationNotification = {
+                id: 'notif_loan_' + Date.now(),
+                type: 'loan_proposed',
+                title: `Oferta de Empréstimo: R$ ${loan.principal.toLocaleString()}`,
+                senderMayor: loan.lenderMayor,
+                senderCity: loan.lenderCity,
+                senderRole: 'mayor_north',
+                targetRole: 'mayor_south',
+                message: `O município de ${loan.lenderCity} ofereceu linha de crédito de R$ ${loan.principal.toLocaleString()} com taxa de ${loan.interestRateMonthly}% a.m. em ${loan.totalInstallments} parcelas mensais de R$ ${loan.installmentValue.toLocaleString()}. Motivo: ${loan.purpose}.`,
+                loanDetails: loan,
+                timestamp: Date.now(),
+                read: false,
+              };
+
+              setActiveAlertNotification(notif);
+              setNotifications((prev) => [notif, ...prev]);
+              sounds.playStamp();
+
+              if (options?.onLoanProposed) {
+                options.onLoanProposed(loan);
+              }
+            }
+          }
+
+          if (data.type === 'intermunicipal_loan_updated') {
+            if (data.sysMsg) {
+              setChatMessages((prev) => [...prev, data.sysMsg]);
+            }
+            const loan: IntermunicipalLoan = data.loan;
+            if (data.accepted) {
+              sounds.playCash();
+              if (options?.onLoanAccepted) {
+                options.onLoanAccepted(loan);
+              }
+              if (options?.onLoanResponded) {
+                options.onLoanResponded(loan.id, true);
+              }
+            } else {
+              sounds.playAlert();
+              if (options?.onLoanRejected) {
+                options.onLoanRejected(loan.id);
+              }
+              if (options?.onLoanResponded) {
+                options.onLoanResponded(loan.id, false);
+              }
+            }
+          }
         } catch (err) {
           console.error('Multiplayer msg error:', err);
         }
@@ -388,6 +447,75 @@ export function useTextMultiplayer(
     [isConnected, myRole, cityState, roomId]
   );
 
+  const proposeLoan = useCallback(
+    (loanData: {
+      borrowerMayor: string;
+      borrowerCity: string;
+      principal: number;
+      interestRateMonthly: number;
+      totalInstallments: number;
+      purpose: string;
+    }) => {
+      if (!wsRef.current || !isConnected || loanData.principal <= 0) return;
+      sounds.playStamp();
+
+      const totalInterest = (loanData.principal * (loanData.interestRateMonthly / 100)) * loanData.totalInstallments;
+      const totalRepayment = Math.round(loanData.principal + totalInterest);
+      const installmentValue = Math.round(totalRepayment / loanData.totalInstallments);
+
+      const loan: IntermunicipalLoan = {
+        id: 'loan_' + Date.now(),
+        lenderRole: 'mayor_north',
+        lenderMayor: cityState.mayorName,
+        lenderCity: cityState.cityName,
+        borrowerRole: 'mayor_south',
+        borrowerMayor: loanData.borrowerMayor,
+        borrowerCity: loanData.borrowerCity,
+        principal: loanData.principal,
+        interestRateMonthly: loanData.interestRateMonthly,
+        totalInstallments: loanData.totalInstallments,
+        remainingInstallments: loanData.totalInstallments,
+        installmentValue,
+        totalRepayment,
+        purpose: loanData.purpose,
+        timestamp: Date.now(),
+        status: 'pending',
+      };
+
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'propose_intermunicipal_loan',
+          roomId,
+          loan,
+        })
+      );
+    },
+    [isConnected, cityState, roomId]
+  );
+
+  const respondToLoan = useCallback(
+    (loan: IntermunicipalLoan | string, accept: boolean) => {
+      if (!wsRef.current || !isConnected) return;
+      if (accept) {
+        sounds.playStamp();
+      } else {
+        sounds.playAlert();
+      }
+
+      const loanObj = typeof loan === 'string' ? { id: loan } : loan;
+
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'respond_intermunicipal_loan',
+          roomId,
+          loan: loanObj,
+          accept,
+        })
+      );
+    },
+    [isConnected, roomId]
+  );
+
   const dismissAlertNotification = useCallback(() => {
     setActiveAlertNotification(null);
   }, []);
@@ -409,12 +537,16 @@ export function useTextMultiplayer(
     setActiveTab,
     notifications,
     activeAlertNotification,
+    activeNegotiation: activeAlertNotification,
     dismissAlertNotification,
+    clearNegotiationNotification: dismissAlertNotification,
     clearNotifications,
     connectToRoom,
     proposeTreaty,
     respondToTreaty,
     sendChatMessage,
     sendDirectAid,
+    proposeLoan,
+    respondToLoan,
   };
 }

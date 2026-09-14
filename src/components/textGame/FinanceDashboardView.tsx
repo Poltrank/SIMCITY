@@ -29,6 +29,18 @@ interface FinanceDashboardViewProps {
   onAdvanceMonth?: () => void;
   onToggleAutoTick?: () => void;
   onOpenPolicies?: () => void;
+  onUpdateDepartmentBudget?: (
+    dept: 'educacao' | 'saude' | 'segurancaGuarda' | 'bombeirosDefesaCivil' | 'energiaIluminacao',
+    amount: number,
+    focus: string
+  ) => void;
+  onUpdateTaxRates?: (rates: {
+    iptuPercent: number;
+    issPercent: number;
+    itbiPercent: number;
+    taxaIluminacaoCip: number;
+  }) => void;
+  onOpenLoansModal?: () => void;
 }
 
 export const FinanceDashboardView: React.FC<FinanceDashboardViewProps> = ({
@@ -36,6 +48,9 @@ export const FinanceDashboardView: React.FC<FinanceDashboardViewProps> = ({
   onAdvanceMonth,
   onToggleAutoTick,
   onOpenPolicies,
+  onUpdateDepartmentBudget,
+  onUpdateTaxRates,
+  onOpenLoansModal,
 }) => {
   const isPayrollWarning = cityState.payrollRatio > 51.3;
   const isPayrollBreached = cityState.payrollRatio > 54.0;
@@ -53,6 +68,25 @@ export const FinanceDashboardView: React.FC<FinanceDashboardViewProps> = ({
     0,
     Math.min(100, ((60 - cycle.secondsRemaining) / 60) * 100)
   );
+
+  const deptBudgets = cityState.departmentBudgets || {
+    educacao: { budgetMonthly: 60000, focus: 'merenda', effectiveness: 72 },
+    saude: { budgetMonthly: 75000, focus: 'upas_24h', effectiveness: 68 },
+    segurancaGuarda: { budgetMonthly: 40000, focus: 'patrulhamento_bairros', effectiveness: 65 },
+    bombeirosDefesaCivil: { budgetMonthly: 30000, focus: 'prevencao_enchentes', effectiveness: 62 },
+    energiaIluminacao: { budgetMonthly: 35000, focus: 'led_100', effectiveness: 70 },
+  };
+
+  const taxRates = cityState.taxRates || {
+    iptuPercent: 1.2,
+    issPercent: 3.5,
+    itbiPercent: 2.0,
+    taxaIluminacaoCip: 18.0,
+  };
+
+  const loans = cityState.intermunicipalLoans || [];
+  const loansGivenActive = loans.filter((l) => l.lenderCity === cityState.cityName && l.status === 'active');
+  const loansTakenActive = loans.filter((l) => l.borrowerCity === cityState.cityName && l.status === 'active');
 
   const rev = cityState.revenueBreakdown || {
     iptu: Math.round(cityState.monthlyRevenue * 0.28),
@@ -437,6 +471,404 @@ export const FinanceDashboardView: React.FC<FinanceDashboardViewProps> = ({
             )}
           </div>
         </div>
+      </div>
+
+      {/* PAINEL DE CONTROLE DE ORÇAMENTO DAS SECRETARIAS */}
+      <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+          <div>
+            <h3 className="font-bold text-sm uppercase tracking-wider text-amber-400 flex items-center gap-2">
+              <Sliders className="w-4 h-4" />
+              Controle de Orçamento das Secretarias (Como na Vida Real)
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              O Prefeito decide quanto enviar para cada pasta e a prioridade estratégica de atuação.
+            </p>
+          </div>
+          <div className="text-xs font-mono text-slate-300">
+            Custeio Direto Total:{' '}
+            <span className="font-bold text-rose-400">
+              R${' '}
+              {(
+                deptBudgets.educacao.budgetMonthly +
+                deptBudgets.saude.budgetMonthly +
+                deptBudgets.segurancaGuarda.budgetMonthly +
+                deptBudgets.bombeirosDefesaCivil.budgetMonthly +
+                deptBudgets.energiaIluminacao.budgetMonthly
+              ).toLocaleString()}
+              /mês
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* EDUCAÇÃO */}
+          <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="font-bold text-xs text-sky-400 flex items-center gap-1.5">
+                📚 Educação & Merenda
+              </div>
+              <span className="text-xs font-mono font-bold text-white">
+                R$ {deptBudgets.educacao.budgetMonthly.toLocaleString()}/mês
+              </span>
+            </div>
+
+            <div>
+              <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
+                Prioridade de Gestão:
+              </label>
+              <select
+                value={deptBudgets.educacao.focus}
+                onChange={(e) =>
+                  onUpdateDepartmentBudget?.('educacao', deptBudgets.educacao.budgetMonthly, e.target.value)
+                }
+                className="w-full bg-slate-900 border border-slate-700 text-xs rounded-lg p-2 text-white"
+              >
+                <option value="merenda">Merenda Escolar de Qualidade</option>
+                <option value="professores">Capacitação & Piso dos Professores</option>
+                <option value="tecnologia">Tablets & Informática nas Escolas</option>
+              </select>
+            </div>
+
+            <div className="flex gap-1.5 pt-1">
+              {[40000, 60000, 85000, 110000].map((val) => (
+                <button
+                  key={val}
+                  onClick={() => {
+                    sounds.playClick();
+                    onUpdateDepartmentBudget?.('educacao', val, deptBudgets.educacao.focus);
+                  }}
+                  className={`flex-1 py-1 text-[10px] font-bold rounded ${
+                    deptBudgets.educacao.budgetMonthly === val
+                      ? 'bg-sky-500 text-slate-950 font-black'
+                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  R$ {val / 1000}k
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* SAÚDE */}
+          <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="font-bold text-xs text-rose-400 flex items-center gap-1.5">
+                🏥 Saúde & SUS Municipal
+              </div>
+              <span className="text-xs font-mono font-bold text-white">
+                R$ {deptBudgets.saude.budgetMonthly.toLocaleString()}/mês
+              </span>
+            </div>
+
+            <div>
+              <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
+                Prioridade de Atendimento:
+              </label>
+              <select
+                value={deptBudgets.saude.focus}
+                onChange={(e) =>
+                  onUpdateDepartmentBudget?.('saude', deptBudgets.saude.budgetMonthly, e.target.value)
+                }
+                className="w-full bg-slate-900 border border-slate-700 text-xs rounded-lg p-2 text-white"
+              >
+                <option value="upas_24h">UPAs 24h & Médicos Plantonistas</option>
+                <option value="medicamentos">Remédios Gratuitos nas Farmácias</option>
+                <option value="postos_bairro">Postos de Saúde nos Bairros</option>
+              </select>
+            </div>
+
+            <div className="flex gap-1.5 pt-1">
+              {[50000, 75000, 100000, 130000].map((val) => (
+                <button
+                  key={val}
+                  onClick={() => {
+                    sounds.playClick();
+                    onUpdateDepartmentBudget?.('saude', val, deptBudgets.saude.focus);
+                  }}
+                  className={`flex-1 py-1 text-[10px] font-bold rounded ${
+                    deptBudgets.saude.budgetMonthly === val
+                      ? 'bg-rose-500 text-slate-950 font-black'
+                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  R$ {val / 1000}k
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* SEGURANÇA E POLÍCIA/GUARDA */}
+          <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="font-bold text-xs text-indigo-400 flex items-center gap-1.5">
+                🛡️ Polícia & Guarda Municipal
+              </div>
+              <span className="text-xs font-mono font-bold text-white">
+                R$ {deptBudgets.segurancaGuarda.budgetMonthly.toLocaleString()}/mês
+              </span>
+            </div>
+
+            <div>
+              <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
+                Estratégia Policial:
+              </label>
+              <select
+                value={deptBudgets.segurancaGuarda.focus}
+                onChange={(e) =>
+                  onUpdateDepartmentBudget?.(
+                    'segurancaGuarda',
+                    deptBudgets.segurancaGuarda.budgetMonthly,
+                    e.target.value
+                  )
+                }
+                className="w-full bg-slate-900 border border-slate-700 text-xs rounded-lg p-2 text-white"
+              >
+                <option value="patrulhamento_bairros">Rondas Motorizadas nos Bairros</option>
+                <option value="cameras_inteligentes">Cercamento Digital & Câmeras IA</option>
+                <option value="armamento_treinamento">Armamento & Treinamento Tático</option>
+              </select>
+            </div>
+
+            <div className="flex gap-1.5 pt-1">
+              {[25000, 40000, 60000, 85000].map((val) => (
+                <button
+                  key={val}
+                  onClick={() => {
+                    sounds.playClick();
+                    onUpdateDepartmentBudget?.('segurancaGuarda', val, deptBudgets.segurancaGuarda.focus);
+                  }}
+                  className={`flex-1 py-1 text-[10px] font-bold rounded ${
+                    deptBudgets.segurancaGuarda.budgetMonthly === val
+                      ? 'bg-indigo-500 text-slate-950 font-black'
+                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  R$ {val / 1000}k
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* BOMBEIROS E DEFESA CIVIL */}
+          <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="font-bold text-xs text-orange-400 flex items-center gap-1.5">
+                🚒 Bombeiros & Defesa Civil
+              </div>
+              <span className="text-xs font-mono font-bold text-white">
+                R$ {deptBudgets.bombeirosDefesaCivil.budgetMonthly.toLocaleString()}/mês
+              </span>
+            </div>
+
+            <div>
+              <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
+                Foco Operacional:
+              </label>
+              <select
+                value={deptBudgets.bombeirosDefesaCivil.focus}
+                onChange={(e) =>
+                  onUpdateDepartmentBudget?.(
+                    'bombeirosDefesaCivil',
+                    deptBudgets.bombeirosDefesaCivil.budgetMonthly,
+                    e.target.value
+                  )
+                }
+                className="w-full bg-slate-900 border border-slate-700 text-xs rounded-lg p-2 text-white"
+              >
+                <option value="prevencao_enchentes">Prevenção a Enchentes & Encostas</option>
+                <option value="resgate_rapido">Ambulâncias & Resgate Rápido</option>
+                <option value="novas_viaturas">Caminhões Autobomba Modernos</option>
+              </select>
+            </div>
+
+            <div className="flex gap-1.5 pt-1">
+              {[20000, 30000, 45000, 65000].map((val) => (
+                <button
+                  key={val}
+                  onClick={() => {
+                    sounds.playClick();
+                    onUpdateDepartmentBudget?.(
+                      'bombeirosDefesaCivil',
+                      val,
+                      deptBudgets.bombeirosDefesaCivil.focus
+                    );
+                  }}
+                  className={`flex-1 py-1 text-[10px] font-bold rounded ${
+                    deptBudgets.bombeirosDefesaCivil.budgetMonthly === val
+                      ? 'bg-orange-500 text-slate-950 font-black'
+                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  R$ {val / 1000}k
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* ENERGIA E ILUMINAÇÃO PÚBLICA */}
+          <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="font-bold text-xs text-amber-400 flex items-center gap-1.5">
+                ⚡ Energia & Iluminação Pública
+              </div>
+              <span className="text-xs font-mono font-bold text-white">
+                R$ {deptBudgets.energiaIluminacao.budgetMonthly.toLocaleString()}/mês
+              </span>
+            </div>
+
+            <div>
+              <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
+                Projeto Energético:
+              </label>
+              <select
+                value={deptBudgets.energiaIluminacao.focus}
+                onChange={(e) =>
+                  onUpdateDepartmentBudget?.(
+                    'energiaIluminacao',
+                    deptBudgets.energiaIluminacao.budgetMonthly,
+                    e.target.value
+                  )
+                }
+                className="w-full bg-slate-900 border border-slate-700 text-xs rounded-lg p-2 text-white"
+              >
+                <option value="led_100">100% LED em Avenidas & Praças</option>
+                <option value="expansao_periferia">Expansão da Rede para Periferia</option>
+                <option value="eficiencia">Energia Solar em Prédios Públicos</option>
+              </select>
+            </div>
+
+            <div className="flex gap-1.5 pt-1">
+              {[20000, 35000, 50000, 75000].map((val) => (
+                <button
+                  key={val}
+                  onClick={() => {
+                    sounds.playClick();
+                    onUpdateDepartmentBudget?.(
+                      'energiaIluminacao',
+                      val,
+                      deptBudgets.energiaIluminacao.focus
+                    );
+                  }}
+                  className={`flex-1 py-1 text-[10px] font-bold rounded ${
+                    deptBudgets.energiaIluminacao.budgetMonthly === val
+                      ? 'bg-amber-500 text-slate-950 font-black'
+                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  R$ {val / 1000}k
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* TRIBUTOS E IMPOSTOS MUNICIPAIS */}
+          <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="font-bold text-xs text-emerald-400 flex items-center gap-1.5">
+                🏛️ Código Tributário (Impostos)
+              </div>
+              <span className="text-[10px] text-slate-400">IPTU / ISS / CIP</span>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">IPTU Predial & Territorial:</span>
+                <div className="flex items-center gap-1">
+                  {[0.8, 1.2, 1.8].map((rate) => (
+                    <button
+                      key={rate}
+                      onClick={() =>
+                        onUpdateTaxRates?.({ ...taxRates, iptuPercent: rate })
+                      }
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        taxRates.iptuPercent === rate
+                          ? 'bg-emerald-500 text-slate-950'
+                          : 'bg-slate-800 text-slate-300'
+                      }`}
+                    >
+                      {rate}%
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">ISS Comércio & Serviços:</span>
+                <div className="flex items-center gap-1">
+                  {[2.5, 3.5, 5.0].map((rate) => (
+                    <button
+                      key={rate}
+                      onClick={() =>
+                        onUpdateTaxRates?.({ ...taxRates, issPercent: rate })
+                      }
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        taxRates.issPercent === rate
+                          ? 'bg-emerald-500 text-slate-950'
+                          : 'bg-slate-800 text-slate-300'
+                      }`}
+                    >
+                      {rate}%
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Taxa Iluminação (CIP/mês):</span>
+                <div className="flex items-center gap-1">
+                  {[12, 18, 25].map((rate) => (
+                    <button
+                      key={rate}
+                      onClick={() =>
+                        onUpdateTaxRates?.({ ...taxRates, taxaIluminacaoCip: rate })
+                      }
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        taxRates.taxaIluminacaoCip === rate
+                          ? 'bg-emerald-500 text-slate-950'
+                          : 'bg-slate-800 text-slate-300'
+                      }`}
+                    >
+                      R$ {rate}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* EMPRÉSTIMOS INTERMUNICIPAIS & COOPERAÇÃO REGIONAL */}
+      <div className="bg-gradient-to-r from-indigo-950/80 to-slate-900 p-5 rounded-xl border border-indigo-500/30 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-indigo-900/60 text-indigo-300 border border-indigo-700">
+              Cooperação Financeira Regional
+            </span>
+            <span className="text-xs text-slate-400 font-mono">
+              {loans.length} contratos ({loansGivenActive.length} a receber, {loansTakenActive.length} a pagar)
+            </span>
+          </div>
+          <h3 className="text-base md:text-lg font-black text-white">
+            Empréstimos entre Prefeituras & Mútuo Municipal
+          </h3>
+          <p className="text-xs text-slate-300 max-w-xl mt-0.5">
+            Cidades com caixa forte podem emprestar recursos a municípios vizinhos obtendo receitas de
+            juros mensais, ou tomar crédito emergencial para cobrir investimentos essenciais.
+          </p>
+        </div>
+
+        <button
+          onClick={() => {
+            sounds.playStamp();
+            onOpenLoansModal?.();
+          }}
+          className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs rounded-xl shadow-lg transition-all flex items-center gap-2 whitespace-nowrap self-start md:self-center"
+        >
+          <Landmark className="w-4 h-4" />
+          Gerenciar Empréstimos Intermunicipais
+        </button>
       </div>
     </div>
   );

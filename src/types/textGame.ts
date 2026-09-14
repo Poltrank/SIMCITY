@@ -218,6 +218,93 @@ export interface PrefeitoCityState {
     amortizacaoDivida: number;
     total: number;
   };
+
+  // Orçamentos Específicos das Pastas Municipais (Educação, Saúde, Polícia, Bombeiros, Energia)
+  departmentBudgets: {
+    educacao: {
+      budgetMonthly: number;
+      focus: 'merenda' | 'piso_salarial' | 'reforma_escolas' | 'transporte_rural';
+      effectiveness: number; // 0 to 100
+    };
+    saude: {
+      budgetMonthly: number;
+      focus: 'upas_24h' | 'medicos_especialistas' | 'samu' | 'remedios_gratuitos';
+      effectiveness: number;
+    };
+    segurancaGuarda: {
+      budgetMonthly: number;
+      focus: 'armamento' | 'videomonitoramento_ia' | 'patrulhamento_bairros' | 'ronda_escolar';
+      effectiveness: number;
+    };
+    bombeirosDefesaCivil: {
+      budgetMonthly: number;
+      focus: 'combate_incendios' | 'prevencao_enchentes' | 'resgate_salvamento' | 'sirenes_alerta';
+      effectiveness: number;
+    };
+    energiaIluminacao: {
+      budgetMonthly: number;
+      focus: 'led_100' | 'eficiencia_solar' | 'expansao_periferia' | 'tarifa_social';
+      effectiveness: number;
+    };
+  };
+
+  // Tributos & Alíquotas Municipais (IPTU, ISS, ITBI, Taxa Iluminação)
+  taxRates: {
+    iptuPercent: number; // ex: 1.2%
+    issPercent: number; // ex: 3.5% (mínimo 2%, máximo 5% pela CF/88)
+    itbiPercent: number; // ex: 2.0%
+    taxaIluminacaoCip: number; // ex: R$ 18.00 por economia
+  };
+
+  // Empréstimos Intermunicipais Concedidos ou Tomados
+  intermunicipalLoans: IntermunicipalLoan[];
+
+  // Ocorrência Emergencial Ativa na Mesa do Prefeito
+  activeEmergencyEvent?: MunicipalEmergencyEvent | null;
+  resolvedEmergenciesCount?: number;
+}
+
+export interface IntermunicipalLoan {
+  id: string;
+  lenderRole: 'mayor_north' | 'mayor_south';
+  lenderMayor: string;
+  lenderCity: string;
+  borrowerRole: 'mayor_north' | 'mayor_south';
+  borrowerMayor: string;
+  borrowerCity: string;
+  principal: number;
+  interestRateMonthly: number; // ex: 3.5%
+  totalInstallments: number; // ex: 6 parcelas
+  remainingInstallments: number;
+  installmentValue: number;
+  totalRepayment: number;
+  purpose: string;
+  status: 'pending' | 'active' | 'completed' | 'rejected';
+  timestamp: number;
+}
+
+export interface EmergencyOption {
+  id: string;
+  label: string;
+  cost: number;
+  revenueGain?: number;
+  approvalImpact: number;
+  indicatorKey?: 'healthIndex' | 'educationIndex' | 'securityIndex' | 'infrastructureIndex';
+  indicatorDelta?: number;
+  feedback: string;
+}
+
+export interface MunicipalEmergencyEvent {
+  id: string;
+  title: string;
+  category: 'educacao' | 'saude' | 'policia' | 'bombeiros' | 'energia' | 'tributos' | 'clima' | 'economia';
+  urgencyLevel: 'alerta' | 'grave' | 'critico' | 'oportunidade';
+  department: string;
+  description: string;
+  options: EmergencyOption[];
+  timestamp: number;
+  resolved: boolean;
+  chosenOptionId?: string;
 }
 
 // Multiplayer Regional
@@ -285,7 +372,7 @@ export interface DirectAidEvent {
 
 export interface NegotiationNotification {
   id: string;
-  type: 'treaty_proposed' | 'treaty_ratified' | 'treaty_rejected' | 'aid_received';
+  type: 'treaty_proposed' | 'treaty_ratified' | 'treaty_rejected' | 'aid_received' | 'loan_proposed' | 'loan_accepted' | 'loan_rejected';
   title: string;
   senderMayor: string;
   senderCity: string;
@@ -294,8 +381,12 @@ export interface NegotiationNotification {
   message: string;
   details?: string;
   treatyId?: string;
+  loanId?: string;
+  loanDetails?: IntermunicipalLoan;
   amount?: number;
   monthlyCostOrPrice?: number;
+  interestRateMonthly?: number;
+  installments?: number;
   timestamp: number;
   read: boolean;
 }

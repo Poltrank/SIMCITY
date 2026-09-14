@@ -1,4 +1,12 @@
-import { PrefeitoCityState, ActiveDispatch, DispatchOutcome, GazetteArticle, FiscalRating } from '../types/textGame';
+import {
+  PrefeitoCityState,
+  ActiveDispatch,
+  DispatchOutcome,
+  GazetteArticle,
+  FiscalRating,
+  MunicipalEmergencyEvent,
+  IntermunicipalLoan,
+} from '../types/textGame';
 import { MUNICIPAL_ACTIONS } from '../data/municipalActions';
 
 const MONTH_NAMES = [
@@ -153,6 +161,45 @@ export function createInitialPrefeitoState(setup?: InitialMayorSetup): PrefeitoC
 
     revenueBreakdown: initialRevenueBreakdown,
     expenseBreakdown: initialExpenseBreakdown,
+
+    departmentBudgets: {
+      educacao: {
+        budgetMonthly: 60000,
+        focus: 'merenda',
+        effectiveness: 72,
+      },
+      saude: {
+        budgetMonthly: 75000,
+        focus: 'upas_24h',
+        effectiveness: 68,
+      },
+      segurancaGuarda: {
+        budgetMonthly: 40000,
+        focus: 'patrulhamento_bairros',
+        effectiveness: 65,
+      },
+      bombeirosDefesaCivil: {
+        budgetMonthly: 30000,
+        focus: 'prevencao_enchentes',
+        effectiveness: 62,
+      },
+      energiaIluminacao: {
+        budgetMonthly: 35000,
+        focus: 'led_100',
+        effectiveness: 70,
+      },
+    },
+
+    taxRates: {
+      iptuPercent: 1.2,
+      issPercent: 3.5,
+      itbiPercent: 2.0,
+      taxaIluminacaoCip: 18.0,
+    },
+
+    intermunicipalLoans: [],
+    activeEmergencyEvent: null,
+    resolvedEmergenciesCount: 0,
   };
 }
 
@@ -927,14 +974,36 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
   const minWage = state.minimumWage || 1412;
   const fineSeverity = state.trafficFineSeverity || 'padrao';
   const companies = state.publicCompanies;
+  const taxRates = state.taxRates || {
+    iptuPercent: 1.2,
+    issPercent: 3.5,
+    itbiPercent: 2.0,
+    taxaIluminacaoCip: 18.0,
+  };
+  const deptBudgets = state.departmentBudgets || {
+    educacao: { budgetMonthly: 60000, focus: 'merenda', effectiveness: 72 },
+    saude: { budgetMonthly: 75000, focus: 'upas_24h', effectiveness: 68 },
+    segurancaGuarda: { budgetMonthly: 40000, focus: 'patrulhamento_bairros', effectiveness: 65 },
+    bombeirosDefesaCivil: { budgetMonthly: 30000, focus: 'prevencao_enchentes', effectiveness: 62 },
+    energiaIluminacao: { budgetMonthly: 35000, focus: 'led_100', effectiveness: 70 },
+  };
 
   // 1. Receitas Detalhadas
-  const iptu = Math.round(145000 * (state.population / 48500) * (state.infrastructureIndex / 58));
-  // Aumento do salário mínimo injeta renda no comércio local e aquece o ISS
+  // IPTU varia com alíquota definida pelo prefeito e valorização imobiliária
+  const iptuBase = 145000 * (state.population / 48500) * (state.infrastructureIndex / 58);
+  const iptu = Math.round(iptuBase * (taxRates.iptuPercent / 1.2));
+
+  // ISS varia com alíquota (2% a 5%), atividade econômica e turismo
   const wageBoostToCommerce = Math.max(0, Math.round((minWage - 1412) * 50));
   const touristBoost = Math.round(state.touristsPerMonth * 4.2);
-  const iss = Math.round(165000 * (state.jobs / 21200) + touristBoost + wageBoostToCommerce);
+  const issBase = 165000 * (state.jobs / 21200) + touristBoost + wageBoostToCommerce;
+  const iss = Math.round(issBase * (taxRates.issPercent / 3.5));
+
+  // FPM e ICMS (Transferências constitucionais do Estado e União)
   const fpmIcms = Math.round(130000 * (state.population / 48500));
+
+  // Taxa de Iluminação Pública CIP / COSIP
+  const taxaIluminacaoTotal = Math.round((state.population / 3.4) * (taxRates.taxaIluminacaoCip || 18));
   
   // Multas de Trânsito & Postura Municipal
   const multasTransito =
@@ -949,29 +1018,65 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
   if (companies?.saneamento?.monthlyResult > 0) lucroEstatais += companies.saneamento.monthlyResult;
   if (companies?.transporte?.monthlyResult > 0) lucroEstatais += companies.transporte.monthlyResult;
 
+  // Receitas de Empréstimos concedidos a outras cidades (parcelas recebidas)
+  let receitasEmprestimosRecebidos = 0;
+  (state.intermunicipalLoans || []).forEach((loan) => {
+    if (loan.status === 'active' && loan.lenderCity === state.cityName) {
+      receitasEmprestimosRecebidos += loan.installmentValue;
+    }
+  });
+
   const totalRevenue =
-    iptu + iss + fpmIcms + multasTransito + royaltiesPetroleo + cfemOuro + lucroEstatais;
+    iptu +
+    iss +
+    fpmIcms +
+    taxaIluminacaoTotal +
+    multasTransito +
+    royaltiesPetroleo +
+    cfemOuro +
+    lucroEstatais +
+    receitasEmprestimosRecebidos;
 
   // 2. Despesas Detalhadas
-  // Folha de pagamento aumenta proporcionalmente ao piso salarial municipal / salário mínimo!
+  // Folha de pagamento aumenta proporcionalmente ao piso salarial municipal
   const wageRatio = minWage / 1412;
   const payroll = Math.round(260000 * wageRatio);
 
-  const saudeSus = Math.round(75000 * (state.population / 48500));
-  const educacaoMerenda = Math.round(60000 * (state.population / 48500));
-  const segurancaGuarda = 40000;
-  const manutencaoUrbana = Math.round(35000 * (state.infrastructureIndex / 58));
+  // Gastos diretos com secretarias definidos pelo prefeito
+  const educacaoMerenda = Math.round(deptBudgets.educacao?.budgetMonthly || 60000);
+  const saudeSus = Math.round(deptBudgets.saude?.budgetMonthly || 75000);
+  const segurancaGuarda = Math.round(deptBudgets.segurancaGuarda?.budgetMonthly || 40000);
+  const bombeirosDefesa = Math.round(deptBudgets.bombeirosDefesaCivil?.budgetMonthly || 30000);
+  const energiaGasto = Math.round(deptBudgets.energiaIluminacao?.budgetMonthly || 35000);
+  const manutencaoUrbana = Math.round(35000 * (state.infrastructureIndex / 58)) + bombeirosDefesa + energiaGasto;
 
-  // Subsídio a empresas públicas deficitárias (Tarifa Zero no transporte ou Correios Social)
+  // Subsídio a empresas públicas deficitárias
   let subsidioEstatais = 0;
   if (companies?.correios?.monthlyResult < 0) subsidioEstatais += Math.abs(companies.correios.monthlyResult);
   if (companies?.saneamento?.monthlyResult < 0) subsidioEstatais += Math.abs(companies.saneamento.monthlyResult);
   if (companies?.transporte?.monthlyResult < 0) subsidioEstatais += Math.abs(companies.transporte.monthlyResult);
 
-  const amortizacaoDivida = state.debt > 0 ? Math.round(state.debt * 0.01) : 0;
+  // Amortização de Dívida Consolidada regular
+  const amortizacaoDividaRegular = state.debt > 0 ? Math.round(state.debt * 0.01) : 0;
+
+  // Parcelas de empréstimos tomados de outras prefeituras
+  let parcelasEmprestimosPagos = 0;
+  (state.intermunicipalLoans || []).forEach((loan) => {
+    if (loan.status === 'active' && loan.borrowerCity === state.cityName) {
+      parcelasEmprestimosPagos += loan.installmentValue;
+    }
+  });
+
+  const amortizacaoDivida = amortizacaoDividaRegular + parcelasEmprestimosPagos;
 
   const totalExpenses =
-    payroll + saudeSus + educacaoMerenda + segurancaGuarda + manutencaoUrbana + subsidioEstatais + amortizacaoDivida;
+    payroll +
+    saudeSus +
+    educacaoMerenda +
+    segurancaGuarda +
+    manutencaoUrbana +
+    subsidioEstatais +
+    amortizacaoDivida;
 
   const netMonthly = totalRevenue - totalExpenses;
 
@@ -1000,6 +1105,8 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
     payrollRatio,
     debtRatio,
     fiscalRating,
+    departmentBudgets: deptBudgets,
+    taxRates,
     revenueBreakdown: {
       iptu,
       iss,
@@ -1007,7 +1114,7 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
       multasTransito,
       royaltiesPetroleo,
       cfemOuro,
-      lucroEstatais,
+      lucroEstatais: lucroEstatais + receitasEmprestimosRecebidos,
       total: totalRevenue,
     },
     expenseBreakdown: {
@@ -1028,6 +1135,19 @@ export function advanceMonthInSimulation(state: PrefeitoCityState): PrefeitoCity
   const nextMonth = recalculated.month === 12 ? 1 : recalculated.month + 1;
   const nextYear = recalculated.month === 12 ? recalculated.year + 1 : recalculated.year;
   const nextTermMonth = recalculated.termMonth + 1;
+
+  // Process loan installments
+  const updatedLoans = (recalculated.intermunicipalLoans || []).map((loan) => {
+    if (loan.status === 'active') {
+      const remaining = loan.remainingInstallments - 1;
+      return {
+        ...loan,
+        remainingInstallments: remaining,
+        status: (remaining <= 0 ? 'completed' : 'active') as 'completed' | 'active',
+      };
+    }
+    return loan;
+  });
 
   // Monthly economic math: Arrecadação e Despesas creditadas/debitadas no Tesouro!
   const nextTreasury = recalculated.treasury + recalculated.netMonthly;
@@ -1062,6 +1182,12 @@ export function advanceMonthInSimulation(state: PrefeitoCityState): PrefeitoCity
     timestamp: Date.now(),
   };
 
+  // Check if we should spawn an emergency event to keep mayor active
+  let nextEmergency = recalculated.activeEmergencyEvent;
+  if (!nextEmergency && Math.random() < 0.45) {
+    nextEmergency = getRandomEmergencyPool(recalculated);
+  }
+
   return {
     ...recalculated,
     year: nextYear,
@@ -1072,6 +1198,8 @@ export function advanceMonthInSimulation(state: PrefeitoCityState): PrefeitoCity
     payrollRatio,
     debtRatio,
     fiscalRating,
+    intermunicipalLoans: updatedLoans,
+    activeEmergencyEvent: nextEmergency,
     economicCycle: {
       ...recalculated.economicCycle,
       secondsRemaining: recalculated.economicCycle.cycleDurationSeconds,
@@ -1399,4 +1527,517 @@ export function toggleAutoFiscalCycle(state: PrefeitoCityState): PrefeitoCitySta
     },
   };
 }
+
+// ==========================================
+// CONTROLE DE ORÇAMENTOS POR SECRETARIA
+// ==========================================
+export function setDepartmentBudgetPolicy(
+  state: PrefeitoCityState,
+  department: 'educacao' | 'saude' | 'segurancaGuarda' | 'bombeirosDefesaCivil' | 'energiaIluminacao',
+  monthlyBudget: number,
+  focus: string
+): { state: PrefeitoCityState; message: string } {
+  const currentBudgets: any = { ...state.departmentBudgets };
+  const oldBudget = currentBudgets[department]?.budgetMonthly || monthlyBudget;
+  const diff = monthlyBudget - oldBudget;
+
+  currentBudgets[department] = {
+    budgetMonthly: monthlyBudget,
+    focus: focus as any,
+    effectiveness: Math.min(100, Math.max(20, (monthlyBudget / 50000) * 60)),
+  };
+
+  let approvalChange = 0;
+  let councilChange = 0;
+  if (diff > 0) {
+    approvalChange = Math.min(10, Math.round(diff / 15000));
+  } else if (diff < 0) {
+    approvalChange = Math.max(-12, Math.round(diff / 10000));
+    councilChange = Math.max(-8, Math.round(diff / 15000));
+  }
+
+  const deptNames: Record<string, string> = {
+    educacao: 'Secretaria de Educação & Merenda',
+    saude: 'Secretaria de Saúde & SUS',
+    segurancaGuarda: 'Secretaria de Segurança & Guarda Municipal',
+    bombeirosDefesaCivil: 'Corpo de Bombeiros & Defesa Civil',
+    energiaIluminacao: 'Secretaria de Infraestrutura & Energia/Iluminação',
+  };
+
+  const updatedState: PrefeitoCityState = {
+    ...state,
+    departmentBudgets: currentBudgets,
+    approvalRating: Math.min(100, Math.max(5, state.approvalRating + approvalChange)),
+    councilSupport: Math.min(100, Math.max(5, state.councilSupport + councilChange)),
+    gazetteFeed: [
+      {
+        id: 'gaz_budget_' + Date.now(),
+        title: `Gabinete Ajusta Orçamento da ${deptNames[department]} para R$ ${monthlyBudget.toLocaleString()}/mês`,
+        source: 'Diário Oficial',
+        type: 'decreto',
+        dateStr: `${String(state.month).padStart(2, '0')}/${state.year}`,
+        body: `O Prefeito despachou decreto redefinindo a dotação orçamentária da pasta com foco estratégico em "${focus.replace('_', ' ').toUpperCase()}".`,
+        impactSummary: `Orçamento mensal ajustado para R$ ${monthlyBudget.toLocaleString()}`,
+        timestamp: Date.now(),
+      },
+      ...state.gazetteFeed.slice(0, 29),
+    ],
+  };
+
+  const finalState = recalculateMunicipalFinances(updatedState);
+  return {
+    state: finalState,
+    message: `Orçamento da pasta atualizado para R$ ${monthlyBudget.toLocaleString()}/mês!`,
+  };
+}
+
+// ==========================================
+// CONTROLE DE TRIBUTOS E ALÍQUOTAS (IPTU, ISS, ITBI, CIP)
+// ==========================================
+export function setTaxRatesPolicy(
+  state: PrefeitoCityState,
+  newTaxRates: {
+    iptuPercent: number;
+    issPercent: number;
+    itbiPercent: number;
+    taxaIluminacaoCip: number;
+  }
+): { state: PrefeitoCityState; message: string } {
+  const currentRates = state.taxRates || {
+    iptuPercent: 1.2,
+    issPercent: 3.5,
+    itbiPercent: 2.0,
+    taxaIluminacaoCip: 18.0,
+  };
+
+  let approvalChange = 0;
+  if (newTaxRates.iptuPercent > currentRates.iptuPercent) approvalChange -= 4;
+  else if (newTaxRates.iptuPercent < currentRates.iptuPercent) approvalChange += 5;
+
+  if (newTaxRates.issPercent > currentRates.issPercent) approvalChange -= 3;
+  else if (newTaxRates.issPercent < currentRates.issPercent) approvalChange += 4;
+
+  const updatedState: PrefeitoCityState = {
+    ...state,
+    taxRates: newTaxRates,
+    approvalRating: Math.min(100, Math.max(5, state.approvalRating + approvalChange)),
+    gazetteFeed: [
+      {
+        id: 'gaz_tax_' + Date.now(),
+        title: `Código Tributário: Reforma das Alíquotas Municipais (IPTU ${newTaxRates.iptuPercent}%, ISS ${newTaxRates.issPercent}%)`,
+        source: 'Diário Oficial',
+        type: 'decreto',
+        dateStr: `${String(state.month).padStart(2, '0')}/${state.year}`,
+        body: `O Executivo Municipal promulgou as novas alíquotas tributárias: IPTU fixado em ${newTaxRates.iptuPercent}%, ISS em ${newTaxRates.issPercent}%, ITBI em ${newTaxRates.itbiPercent}% e CIP Iluminação em R$ ${newTaxRates.taxaIluminacaoCip.toFixed(2)}.`,
+        impactSummary: `Nova calibragem de receitas e competitividade fiscal`,
+        timestamp: Date.now(),
+      },
+      ...state.gazetteFeed.slice(0, 29),
+    ],
+  };
+
+  const finalState = recalculateMunicipalFinances(updatedState);
+  return {
+    state: finalState,
+    message: `Código tributário municipal atualizado! Receitas recalculadas.`,
+  };
+}
+
+// ==========================================
+// PISCINA DE OCORRÊNCIAS & CRISES EMERGENCIAIS DO PREFEITO
+// ==========================================
+export function getRandomEmergencyPool(state: PrefeitoCityState): MunicipalEmergencyEvent {
+  const events: MunicipalEmergencyEvent[] = [
+    {
+      id: 'emg_temporal_' + Date.now(),
+      title: '⛈️ Temporal Severo Derruba Postes e Rompe Rede de Energia',
+      category: 'energia',
+      urgencyLevel: 'grave',
+      department: 'Secretaria de Infraestrutura & Defesa Civil',
+      description:
+        'Fortes ventos atingiram o município provocando quedas de árvores sobre fiações de alta tensão, deixando 3 bairros sem luz e o trânsito em pane.',
+      options: [
+        {
+          id: 'opt_mobilizar_equipes',
+          label: 'Mobilizar Força-Tarefa e Trocar Postes com Verba Suplementar (-R$ 45.000)',
+          cost: 45000,
+          approvalImpact: 7,
+          indicatorKey: 'infrastructureIndex',
+          indicatorDelta: 4,
+          feedback: 'Equipes municipais trabalharam na madrugada. Energia restabelecida em 4 horas com aplauso dos moradores!',
+        },
+        {
+          id: 'opt_aguardar_concessionaria',
+          label: 'Apenas Notificar Concessionária sem Gastos Públicos (Custo R$ 0)',
+          cost: 0,
+          approvalImpact: -8,
+          indicatorKey: 'infrastructureIndex',
+          indicatorDelta: -3,
+          feedback: 'A demora de 36h revoltou os comerciantes locais, gerando panelaço na frente do Gabinete.',
+        },
+      ],
+      timestamp: Date.now(),
+      resolved: false,
+    },
+    {
+      id: 'emg_adutora_' + Date.now(),
+      title: '💧 Rompimento de Adutora Mestra da Companhia de Água',
+      category: 'saude',
+      urgencyLevel: 'critico',
+      department: 'SANEMAP & Secretaria de Saneamento',
+      description:
+        'A tubulação de 500mm da adutora central cedeu, jorrando milhares de litros e desabastecendo 15.000 moradores da zona leste.',
+      options: [
+        {
+          id: 'opt_obra_emergencial_agua',
+          label: 'Contratação Emergencial de Reparo & Caminhões-Pipa (-R$ 60.000)',
+          cost: 60000,
+          approvalImpact: 8,
+          indicatorKey: 'healthIndex',
+          indicatorDelta: 5,
+          feedback: 'Caminhões-pipa abasteceram postos de saúde e a adutora foi soldada no mesmo dia.',
+        },
+        {
+          id: 'opt_racionar_agua',
+          label: 'Decretar Rodízio e Racionamento Preventivo (-R$ 10.000)',
+          cost: 10000,
+          approvalImpact: -5,
+          feedback: 'O racionamento evitou gastos elevados, mas escolas municipais tiveram aulas suspensas.',
+        },
+      ],
+      timestamp: Date.now(),
+      resolved: false,
+    },
+    {
+      id: 'emg_professores_' + Date.now(),
+      title: '📚 Vigília dos Professores: Cobrança por Piso e Merenda Orgânica',
+      category: 'educacao',
+      urgencyLevel: 'alerta',
+      department: 'Secretaria de Educação',
+      description:
+        'Docentes municipais reuniram 400 servidores em frente à Prefeitura cobrando abono pedagógico e compra direta da agricultura familiar.',
+      options: [
+        {
+          id: 'opt_conceder_abono',
+          label: 'Aprovar Abono e Merenda da Agricultura Familiar (-R$ 75.000)',
+          cost: 75000,
+          approvalImpact: 9,
+          indicatorKey: 'educationIndex',
+          indicatorDelta: 6,
+          feedback: 'Acordo histórico assinado! Professores cancelaram indicativo de greve e a merenda escolar melhorou.',
+        },
+        {
+          id: 'opt_mesa_negociacao',
+          label: 'Criar Comissão de Estudos sem Aporte Financeiro Imediato (R$ 0)',
+          cost: 0,
+          approvalImpact: -6,
+          feedback: 'O sindicato criticou a falta de agilidade e convocou paralisação de 24 horas.',
+        },
+      ],
+      timestamp: Date.now(),
+      resolved: false,
+    },
+    {
+      id: 'emg_dengue_' + Date.now(),
+      title: '🦟 Alerta Epidemiológico: Disparada de Casos de Dengue nas UPAs',
+      category: 'saude',
+      urgencyLevel: 'grave',
+      department: 'Secretaria de Saúde & Vigilância Sanitária',
+      description:
+        'O índice de infestação predial do mosquito Aedes aegypti quadruplicou após chuvas de verão. Filas nas UPAs superam 3 horas.',
+      options: [
+        {
+          id: 'opt_fumace_upas',
+          label: 'Contratar 15 Médicos Extras e Fumacê em Todos os Bairros (-R$ 55.000)',
+          cost: 55000,
+          approvalImpact: 9,
+          indicatorKey: 'healthIndex',
+          indicatorDelta: 7,
+          feedback: 'Atendimento nas UPAs foi normalizado e os focos de larva caíram 70% em duas semanas.',
+        },
+        {
+          id: 'opt_campanha_panfletos',
+          label: 'Realizar Apenas Campanha Educativa em Redes Sociais (-R$ 8.000)',
+          cost: 8000,
+          approvalImpact: -4,
+          feedback: 'A população reclamou da lentidão no atendimento dos postos de saúde.',
+        },
+      ],
+      timestamp: Date.now(),
+      resolved: false,
+    },
+    {
+      id: 'emg_polo_tecnologico_' + Date.now(),
+      title: '💼 Oportunidade: Centro Logístico Regional Quer se Instalar na Cidade',
+      category: 'economia',
+      urgencyLevel: 'oportunidade',
+      department: 'Secretaria de Desenvolvimento Econômico',
+      description:
+        'Um grande consórcio logístico de e-commerce planeja galpão de 40.000 m² gerando 900 empregos, solicitando terraplenagem e alvará célere.',
+      options: [
+        {
+          id: 'opt_atrair_empresa',
+          label: 'Oferecer Obra de Acesso Viário e Agilizar Licenciamento (-R$ 80.000)',
+          cost: 80000,
+          revenueGain: 95000,
+          approvalImpact: 11,
+          indicatorKey: 'infrastructureIndex',
+          indicatorDelta: 6,
+          feedback: 'Contrato firmado! 900 novos empregos no município e injeção de ISS na arrecadação!',
+        },
+        {
+          id: 'opt_tramitacao_padrao',
+          label: 'Exigir Trâmite Burocrático Comum sem Obras da Prefeitura (R$ 0)',
+          cost: 0,
+          approvalImpact: -2,
+          feedback: 'A empresa decidiu abrir galpão em cidade vizinha mais receptiva.',
+        },
+      ],
+      timestamp: Date.now(),
+      resolved: false,
+    },
+    {
+      id: 'emg_incendio_fabrica_' + Date.now(),
+      title: '🚒 Incêndio de Grandes Proporções em Galpão de Reciclagem',
+      category: 'bombeiros',
+      urgencyLevel: 'critico',
+      department: 'Corpo de Bombeiros & Defesa Civil',
+      description:
+        'Chamas de 15 metros ameaçam residências vizinhas. Bombeiros e Guarda Municipal solicitam retroescavadeiras e apoio imediato.',
+      options: [
+        {
+          id: 'opt_socorro_bombeiros',
+          label: 'Mobilizar Bombeiros, Carros-Pipa e Isolamento com Guarda (-R$ 38.000)',
+          cost: 38000,
+          approvalImpact: 10,
+          indicatorKey: 'securityIndex',
+          indicatorDelta: 5,
+          feedback: 'Incêndio controlado sem nenhuma vítima fatal! Ação corajosa elogiada pela comunidade.',
+        },
+        {
+          id: 'opt_evacuar_apenas',
+          label: 'Evacuar Bairro sem Contratação de Equipamentos Extras (-R$ 5.000)',
+          cost: 5000,
+          approvalImpact: -6,
+          feedback: 'O fogo se alastrou e destruiu dois comércios adjacentes, gerando indignação popular.',
+        },
+      ],
+      timestamp: Date.now(),
+      resolved: false,
+    },
+  ];
+
+  const pick = events[Math.floor(Math.random() * events.length)];
+  return pick;
+}
+
+export function triggerManualEmergency(state: PrefeitoCityState): PrefeitoCityState {
+  const newEmergency = getRandomEmergencyPool(state);
+  return {
+    ...state,
+    activeEmergencyEvent: newEmergency,
+  };
+}
+
+export function resolveEmergencyEvent(
+  state: PrefeitoCityState,
+  eventId: string,
+  optionId: string
+): { state: PrefeitoCityState; feedback: string } {
+  const event = state.activeEmergencyEvent;
+  if (!event || event.id !== eventId) {
+    return { state, feedback: 'Ocorrência não encontrada.' };
+  }
+
+  const option = event.options.find((o) => o.id === optionId);
+  if (!option) {
+    return { state, feedback: 'Opção inválida.' };
+  }
+
+  const cost = option.cost || 0;
+  const revGain = option.revenueGain || 0;
+  const newTreasury = state.treasury - cost;
+
+  let newHealth = state.healthIndex;
+  let newEdu = state.educationIndex;
+  let newSec = state.securityIndex;
+  let newInfra = state.infrastructureIndex;
+
+  if (option.indicatorKey === 'healthIndex') newHealth = Math.min(100, Math.max(10, newHealth + (option.indicatorDelta || 0)));
+  if (option.indicatorKey === 'educationIndex') newEdu = Math.min(100, Math.max(10, newEdu + (option.indicatorDelta || 0)));
+  if (option.indicatorKey === 'securityIndex') newSec = Math.min(100, Math.max(10, newSec + (option.indicatorDelta || 0)));
+  if (option.indicatorKey === 'infrastructureIndex') newInfra = Math.min(100, Math.max(10, newInfra + (option.indicatorDelta || 0)));
+
+  const updatedState: PrefeitoCityState = {
+    ...state,
+    treasury: newTreasury,
+    monthlyRevenue: state.monthlyRevenue + revGain,
+    approvalRating: Math.min(100, Math.max(5, state.approvalRating + option.approvalImpact)),
+    healthIndex: newHealth,
+    educationIndex: newEdu,
+    securityIndex: newSec,
+    infrastructureIndex: newInfra,
+    activeEmergencyEvent: null,
+    resolvedEmergenciesCount: (state.resolvedEmergenciesCount || 0) + 1,
+    gazetteFeed: [
+      {
+        id: 'gaz_despacho_' + Date.now(),
+        title: `Despacho de Crise: Prefeito Soluciona "${event.title}"`,
+        source: 'Diário Oficial',
+        type: option.approvalImpact >= 0 ? 'decreto' : 'alerta',
+        dateStr: `${String(state.month).padStart(2, '0')}/${state.year}`,
+        body: `O Chefe do Executivo deliberou: ${option.label}. Resultado: ${option.feedback}`,
+        impactSummary: `Tesouro: ${cost > 0 ? `-R$ ${cost.toLocaleString()}` : 'R$ 0'} | Aprovação: ${option.approvalImpact >= 0 ? '+' : ''}${option.approvalImpact}%`,
+        timestamp: Date.now(),
+      },
+      ...state.gazetteFeed.slice(0, 29),
+    ],
+  };
+
+  const finalState = recalculateMunicipalFinances(updatedState);
+  return {
+    state: finalState,
+    feedback: option.feedback,
+  };
+}
+
+// ==========================================
+// EMPRÉSTIMOS INTERMUNICIPAIS (LINHA DE CRÉDITO ENTRE CIDADES)
+// ==========================================
+export function grantIntermunicipalLoan(
+  state: PrefeitoCityState,
+  loanOrData:
+    | IntermunicipalLoan
+    | {
+        borrowerMayor: string;
+        borrowerCity: string;
+        principal: number;
+        interestRateMonthly: number;
+        totalInstallments: number;
+        purpose: string;
+      }
+): { state: PrefeitoCityState; loan: IntermunicipalLoan; message: string } {
+  let loan: IntermunicipalLoan;
+
+  if ('id' in loanOrData) {
+    loan = loanOrData;
+  } else {
+    const totalInterest = (loanOrData.principal * (loanOrData.interestRateMonthly / 100)) * loanOrData.totalInstallments;
+    const totalRepayment = Math.round(loanOrData.principal + totalInterest);
+    const installmentValue = Math.round(totalRepayment / loanOrData.totalInstallments);
+
+    loan = {
+      id: 'loan_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+      lenderRole: 'mayor_north',
+      lenderMayor: state.mayorName,
+      lenderCity: state.cityName,
+      borrowerRole: 'mayor_south',
+      borrowerMayor: loanOrData.borrowerMayor,
+      borrowerCity: loanOrData.borrowerCity,
+      principal: loanOrData.principal,
+      interestRateMonthly: loanOrData.interestRateMonthly,
+      totalInstallments: loanOrData.totalInstallments,
+      remainingInstallments: loanOrData.totalInstallments,
+      installmentValue,
+      totalRepayment,
+      purpose: loanOrData.purpose,
+      status: 'active',
+      timestamp: Date.now(),
+    };
+  }
+
+  if (state.treasury < loan.principal) {
+    return {
+      state,
+      loan,
+      message: `Tesouro insuficiente para conceder empréstimo de R$ ${loan.principal.toLocaleString()}.`,
+    };
+  }
+
+  const updatedLoans = [...(state.intermunicipalLoans || []), loan];
+  const updatedState: PrefeitoCityState = {
+    ...state,
+    treasury: state.treasury - loan.principal,
+    intermunicipalLoans: updatedLoans,
+    gazetteFeed: [
+      {
+        id: 'gaz_loan_grant_' + Date.now(),
+        title: `Cooperação Regional: Município Concede Empréstimo de R$ ${loan.principal.toLocaleString()} para ${loan.borrowerCity}`,
+        source: 'Diário Oficial',
+        type: 'decreto',
+        dateStr: `${String(state.month).padStart(2, '0')}/${state.year}`,
+        body: `Termo de mútuo financeiro intermunicipal formalizado com ${loan.borrowerCity} (${loan.borrowerMayor}). Taxa de juros de ${loan.interestRateMonthly}% a.m. em ${loan.totalInstallments} parcelas mensais de R$ ${loan.installmentValue.toLocaleString()}. Destinação: ${loan.purpose}.`,
+        impactSummary: `Crédito concedido | Rendimento mensal garantido ao Tesouro`,
+        timestamp: Date.now(),
+      },
+      ...state.gazetteFeed.slice(0, 29),
+    ],
+  };
+
+  const finalState = recalculateMunicipalFinances(updatedState);
+  return {
+    state: finalState,
+    loan,
+    message: `Empréstimo de R$ ${loan.principal.toLocaleString()} concedido com sucesso para ${loan.borrowerCity}!`,
+  };
+}
+
+export function acceptIntermunicipalLoan(
+  state: PrefeitoCityState,
+  loan: IntermunicipalLoan
+): { state: PrefeitoCityState; message: string } {
+  const activeLoan: IntermunicipalLoan = {
+    ...loan,
+    status: 'active',
+  };
+
+  const existingWithoutCurrent = (state.intermunicipalLoans || []).filter((l) => l.id !== loan.id);
+  const updatedLoans = [activeLoan, ...existingWithoutCurrent];
+  const updatedState: PrefeitoCityState = {
+    ...state,
+    treasury: state.treasury + loan.principal,
+    debt: state.debt + loan.totalRepayment,
+    intermunicipalLoans: updatedLoans,
+    gazetteFeed: [
+      {
+        id: 'gaz_loan_accept_' + Date.now(),
+        title: `Socorro Financeiro: Tesouro Recebe R$ ${loan.principal.toLocaleString()} de Empréstimo de ${loan.lenderCity}`,
+        source: 'Diário Oficial',
+        type: 'decreto',
+        dateStr: `${String(state.month).padStart(2, '0')}/${state.year}`,
+        body: `O Prefeito ratificou o contrato de crédito intermunicipal com ${loan.lenderCity} (${loan.lenderMayor}). O valor de R$ ${loan.principal.toLocaleString()} foi creditado na conta do Tesouro. O pagamento será feito em ${loan.totalInstallments} parcelas mensais de R$ ${loan.installmentValue.toLocaleString()}.`,
+        impactSummary: `Recurso em caixa: +R$ ${loan.principal.toLocaleString()} | Parcelas provisionadas no orçamento`,
+        timestamp: Date.now(),
+      },
+      ...state.gazetteFeed.slice(0, 29),
+    ],
+  };
+
+  const finalState = recalculateMunicipalFinances(updatedState);
+  return {
+    state: finalState,
+    message: `Empréstimo aceito! R$ ${loan.principal.toLocaleString()} creditados no caixa municipal.`,
+  };
+}
+
+export function rejectIntermunicipalLoan(
+  state: PrefeitoCityState,
+  loanId: string
+): { state: PrefeitoCityState; message: string } {
+  const updatedLoans = (state.intermunicipalLoans || []).map((l) => {
+    if (l.id === loanId) {
+      return { ...l, status: 'rejected' as const };
+    }
+    return l;
+  });
+
+  return {
+    state: {
+      ...state,
+      intermunicipalLoans: updatedLoans,
+    },
+    message: 'Proposta de empréstimo rejeitada formalmente.',
+  };
+}
+
 

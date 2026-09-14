@@ -92,6 +92,68 @@ function getOrCreateRoom(roomId: string): RoomState {
   return rooms[cleanId];
 }
 
+// Persistent Server-side Cloud Game Saves
+const savedGameStates: Record<string, { state: any; savedAt: number; cityName: string; mayorName: string }> = {};
+
+// Save state online automatically
+app.post('/api/game/save', (req, res) => {
+  try {
+    const { key, state } = req.body;
+    if (!key || !state) {
+      return res.status(400).json({ error: 'Missing key or state' });
+    }
+    const cleanKey = String(key).trim().toLowerCase();
+    savedGameStates[cleanKey] = {
+      state,
+      savedAt: Date.now(),
+      cityName: state.cityName || 'Município',
+      mayorName: state.mayorName || 'Prefeito',
+    };
+    return res.json({ success: true, savedAt: savedGameStates[cleanKey].savedAt });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// Load state online
+app.get('/api/game/load/:key', (req, res) => {
+  const cleanKey = String(req.params.key).trim().toLowerCase();
+  const found = savedGameStates[cleanKey];
+  if (!found) {
+    return res.status(404).json({ error: 'Nenhum jogo salvo online para esta chave.' });
+  }
+  return res.json({ success: true, ...found });
+});
+
+// Regional Economic Ranking of All Cities
+app.get('/api/game/ranking', (req, res) => {
+  const list = Object.values(savedGameStates).map((entry) => {
+    const s = entry.state;
+    return {
+      cityName: s.cityName || entry.cityName,
+      mayorName: s.mayorName || entry.mayorName,
+      party: s.party || 'SEM PARTIDO',
+      treasury: s.treasury || 0,
+      monthlyRevenue: s.monthlyRevenue || 0,
+      monthlyExpenses: s.monthlyExpenses || 0,
+      netMonthly: s.netMonthly || 0,
+      population: s.population || 0,
+      jobs: s.jobs || 0,
+      unemploymentRate: s.unemploymentRate || 0,
+      fiscalRating: s.fiscalRating || 'B',
+      approvalRating: s.approvalRating || 50,
+      securityIndex: s.securityIndex || 50,
+      healthIndex: s.healthIndex || 50,
+      educationIndex: s.educationIndex || 50,
+      infrastructureIndex: s.infrastructureIndex || 50,
+      savedAt: entry.savedAt,
+    };
+  });
+
+  list.sort((a, b) => b.treasury - a.treasury);
+  return res.json({ ranking: list });
+});
+
 // API endpoint to inspect room status
 app.get('/api/rooms/:id', (req, res) => {
   const room = getOrCreateRoom(req.params.id);
@@ -437,6 +499,66 @@ wss.on('connection', (ws: ClientWS) => {
             type: 'direct_aid_transferred',
             aidEvent,
             sysMsg,
+          });
+        }
+      }
+
+      // Propose Intermunicipal Loan (between Mayors)
+      if (type === 'propose_intermunicipal_loan' && ws.roomId) {
+        const room = rooms[ws.roomId];
+        if (room && data.loan) {
+          const loan = {
+            ...data.loan,
+            id: 'loan_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+            status: 'pending',
+            timestamp: Date.now(),
+          };
+
+          const sysMsg = {
+            id: 'msg_loan_' + Date.now(),
+            sender: 'Banco de Desenvolvimento Regional',
+            text: `🏛️ PROPOSTA DE EMPRÉSTIMO: O Prefeito ${loan.lenderMayor} (${loan.lenderCity}) ofereceu crédito de R$ ${Number(loan.principal).toLocaleString()} a ${loan.interestRateMonthly}% a.m. para ${loan.borrowerCity}!`,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            role: 'system',
+          };
+          room.chatMessages.push(sysMsg);
+
+          broadcastToRoom(ws.roomId, {
+            type: 'intermunicipal_loan_proposed',
+            loan,
+            sysMsg,
+            senderId: ws.playerId,
+          });
+        }
+      }
+
+      // Respond to Intermunicipal Loan (Accept or Reject)
+      if (type === 'respond_intermunicipal_loan' && ws.roomId) {
+        const room = rooms[ws.roomId];
+        if (room && data.loan) {
+          const accepted = !!data.accept;
+          const loan = {
+            ...data.loan,
+            status: accepted ? 'active' : 'rejected',
+          };
+
+          const sysMsg = {
+            id: 'msg_loan_resp_' + Date.now(),
+            sender: 'Consórcio Metropolitano',
+            text: accepted
+              ? `✅ EMPRÉSTIMO APROVADO: O Prefeito ${loan.borrowerMayor} (${loan.borrowerCity}) aceitou a linha de crédito de R$ ${Number(loan.principal).toLocaleString()}! Valores transferidos.`
+              : `❌ EMPRÉSTIMO RECUSADO: A proposta de mútuo financeiro entre ${loan.lenderCity} e ${loan.borrowerCity} foi recusada.`,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            role: 'system',
+          };
+          room.chatMessages.push(sysMsg);
+
+          broadcastToRoom(ws.roomId, {
+            type: 'intermunicipal_loan_updated',
+            loan,
+            accepted,
+            sysMsg,
+            responderId: ws.playerId,
           });
         }
       }

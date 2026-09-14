@@ -28,12 +28,15 @@ export const NegotiationAlertBanner: React.FC<NegotiationAlertBannerProps> = ({
   const isTreatyRatified = notification.type === 'treaty_ratified';
   const isTreatyRejected = notification.type === 'treaty_rejected';
   const isAid = notification.type === 'aid_received';
+  const isLoan = notification.type === 'loan_proposed';
 
   return (
     <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-2xl animate-bounce-short">
       <div
         className={`p-4 rounded-2xl shadow-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 backdrop-blur-md ${
-          isTreatyProposed
+          isLoan
+            ? 'bg-purple-950/95 border-purple-400 text-purple-100 shadow-purple-900/40'
+            : isTreatyProposed
             ? 'bg-amber-950/95 border-amber-400 text-amber-100 shadow-amber-900/40'
             : isTreatyRatified
             ? 'bg-emerald-950/95 border-emerald-400 text-emerald-100 shadow-emerald-900/40'
@@ -45,7 +48,9 @@ export const NegotiationAlertBanner: React.FC<NegotiationAlertBannerProps> = ({
         <div className="flex items-start gap-3">
           <div
             className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 font-bold shadow-md ${
-              isTreatyProposed
+              isLoan
+                ? 'bg-purple-500 text-white animate-pulse'
+                : isTreatyProposed
                 ? 'bg-amber-500 text-slate-950 animate-pulse'
                 : isTreatyRatified
                 ? 'bg-emerald-500 text-slate-950'
@@ -54,6 +59,7 @@ export const NegotiationAlertBanner: React.FC<NegotiationAlertBannerProps> = ({
                 : 'bg-rose-500 text-white'
             }`}
           >
+            {isLoan && <DollarSign className="w-5 h-5" />}
             {isTreatyProposed && <Handshake className="w-5 h-5" />}
             {isTreatyRatified && <CheckCircle2 className="w-5 h-5" />}
             {isAid && <DollarSign className="w-5 h-5" />}
@@ -63,6 +69,7 @@ export const NegotiationAlertBanner: React.FC<NegotiationAlertBannerProps> = ({
           <div>
             <div className="flex items-center gap-2 mb-0.5">
               <span className="text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/40 border border-white/20">
+                {isLoan && '🏛️ Proposta de Empréstimo Intermunicipal'}
                 {isTreatyProposed && '🚨 Proposta de Negociação Regional'}
                 {isTreatyRatified && '📜 Tratado Bilateral Aprovado!'}
                 {isTreatyRejected && '❌ Tratado Arquivado'}

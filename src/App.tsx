@@ -7,6 +7,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   PrefeitoCityState,
   DispatchOutcome,
+  IntermunicipalLoan,
 } from './types/textGame';
 import {
   createInitialPrefeitoState,
@@ -18,6 +19,13 @@ import {
   setPublicCompanyStatus,
   setTrafficFinePolicy,
   toggleAutoFiscalCycle,
+  setDepartmentBudgetPolicy,
+  setTaxRatesPolicy,
+  grantIntermunicipalLoan,
+  acceptIntermunicipalLoan,
+  rejectIntermunicipalLoan,
+  triggerManualEmergency,
+  resolveEmergencyEvent,
 } from './simulation/textSimulationEngine';
 import { useTextMultiplayer } from './hooks/useTextMultiplayer';
 import { sounds } from './audio/soundManager';
@@ -30,6 +38,10 @@ import { FinanceDashboardView } from './components/textGame/FinanceDashboardView
 import { RegionalMultiplayerView } from './components/textGame/RegionalMultiplayerView';
 import { PublicPoliciesView } from './components/textGame/PublicPoliciesView';
 import { DispatchModal } from './components/textGame/DispatchModal';
+import { EconomicRankingView } from './components/textGame/EconomicRankingView';
+import { IntermunicipalLoansModal } from './components/textGame/IntermunicipalLoansModal';
+import { EmergencyEventModal } from './components/textGame/EmergencyEventModal';
+import { NegotiationAlertBanner } from './components/textGame/NegotiationAlertBanner';
 
 const LOCAL_STORAGE_KEY = 'prefeito_game_state_v1';
 
@@ -49,22 +61,99 @@ export default function App() {
     return createInitialPrefeitoState();
   });
 
-  const [activeView, setActiveView] = useState<'mesa' | 'secretarias' | 'politicas' | 'gazeta' | 'financas' | 'regional'>('mesa');
+  const [activeView, setActiveView] = useState<'mesa' | 'secretarias' | 'politicas' | 'gazeta' | 'financas' | 'regional' | 'ranking'>('mesa');
   const [activeModalOutcome, setActiveModalOutcome] = useState<DispatchOutcome | null>(null);
+  const [isLoansModalOpen, setIsLoansModalOpen] = useState<boolean>(false);
+  const [isEmergencyModalOpen, setIsEmergencyModalOpen] = useState<boolean>(false);
+  const [isSavingOnline, setIsSavingOnline] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(sounds.isMuted);
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
 
-  // Multiplayer Hook
-  const multiplayer = useTextMultiplayer(cityState);
+  // Multiplayer Hook with Loan events
+  const multiplayer = useTextMultiplayer(cityState, {
+    onLoanProposed: (loan) => {
+      // If a loan is proposed to us, sync it into local state as pending
+      setCityState((prev) => {
+        const existing = prev.intermunicipalLoans || [];
+        if (existing.some((l) => l.id === loan.id)) return prev;
+        return {
+          ...prev,
+          intermunicipalLoans: [loan, ...existing],
+        };
+      });
+      sounds.playAlert();
+    },
+    onLoanResponded: (loanId, accepted) => {
+      setCityState((prev) => {
+        const existing = prev.intermunicipalLoans || [];
+        const updated = existing.map((l) => {
+          if (l.id === loanId) {
+            return {
+              ...l,
+              status: accepted ? ('active' as const) : ('rejected' as const),
+            };
+          }
+          return l;
+        });
+        return {
+          ...prev,
+          intermunicipalLoans: updated,
+        };
+      });
+      if (accepted) {
+        sounds.playCash();
+      } else {
+        sounds.playAlert();
+      }
+    },
+  });
 
-  // Save state to local storage on changes
+  // Online auto-save function
+  const saveStateOnline = useCallback(async (stateToSave: PrefeitoCityState) => {
+    setIsSavingOnline(true);
+    try {
+      await fetch('/api/game/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state: stateToSave }),
+      });
+    } catch (e) {
+      console.error('Online auto-save error:', e);
+    } finally {
+      setIsSavingOnline(false);
+    }
+  }, []);
+
+  // Save state to local storage on changes and debounce online save
   useEffect(() => {
     try {
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cityState));
     } catch (e) {
       console.error('Failed to persist state:', e);
     }
-  }, [cityState]);
+
+    const timer = setTimeout(() => {
+      saveStateOnline(cityState);
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [cityState, saveStateOnline]);
+
+  // Try to load any previously saved state from online server on first mount
+  useEffect(() => {
+    const fetchOnlineSavedState = async () => {
+      try {
+        const res = await fetch(`/api/game/load?cityName=${encodeURIComponent(cityState.cityName)}`);
+        const data = await res.json();
+        if (data.success && data.state) {
+          console.log('Online save state restored for city:', data.state.cityName);
+        }
+      } catch (e) {
+        console.error('Failed to fetch online save:', e);
+      }
+    };
+    fetchOnlineSavedState();
+  }, []);
 
   const showToast = (text: string, type: 'success' | 'error' | 'info' = 'info') => {
     setToastMessage({ text, type });
@@ -133,6 +222,13 @@ export default function App() {
       const next = advanceMonthInSimulation(prev);
       sounds.playCash();
       showToast(`Mês de ${next.monthName} fechado! Balanço atualizado.`, 'success');
+
+      // If an emergency event was generated, open the emergency modal immediately!
+      if (next.activeEmergencyEvent) {
+        setIsEmergencyModalOpen(true);
+        sounds.playAlert();
+      }
+
       return next;
     });
   }, []);
@@ -180,6 +276,108 @@ export default function App() {
     });
   }, []);
 
+  // Department Budget Adjustment
+  const handleUpdateDepartmentBudget = useCallback(
+    (
+      dept: 'educacao' | 'saude' | 'segurancaGuarda' | 'bombeirosDefesaCivil' | 'energiaIluminacao',
+      amount: number,
+      focus: string
+    ) => {
+      setCityState((prev) => {
+        const updated = setDepartmentBudgetPolicy(prev, dept, amount, focus);
+        sounds.playStamp();
+        showToast('Orçamento da secretaria atualizado pelo Chefe do Executivo.', 'success');
+        return updated;
+      });
+    },
+    []
+  );
+
+  // Tax Rates Adjustment
+  const handleUpdateTaxRates = useCallback(
+    (rates: {
+      iptuPercent: number;
+      issPercent: number;
+      itbiPercent: number;
+      taxaIluminacaoCip: number;
+    }) => {
+      setCityState((prev) => {
+        const updated = setTaxRatesPolicy(prev, rates);
+        sounds.playStamp();
+        showToast('Código tributário municipal republicado no Diário Oficial!', 'success');
+        return updated;
+      });
+    },
+    []
+  );
+
+  // Manual Trigger of Emergency Event
+  const handleTriggerManualEmergency = useCallback(() => {
+    setCityState((prev) => {
+      const updated = triggerManualEmergency(prev);
+      setIsEmergencyModalOpen(true);
+      sounds.playAlert();
+      showToast('🚨 OCORRÊNCIA EMERGENCIAL! O Gabinete de Crise foi acionado.', 'error');
+      return updated;
+    });
+  }, []);
+
+  // Resolve Emergency Event
+  const handleResolveEmergency = useCallback((eventId: string, optionId: string) => {
+    setCityState((prev) => {
+      const { state: updated, feedback } = resolveEmergencyEvent(prev, eventId, optionId);
+      setIsEmergencyModalOpen(false);
+      showToast(feedback, 'success');
+      return updated;
+    });
+  }, []);
+
+  // Propose Intermunicipal Loan
+  const handleProposeLoan = useCallback(
+    (loanData: {
+      borrowerMayor: string;
+      borrowerCity: string;
+      principal: number;
+      interestRateMonthly: number;
+      totalInstallments: number;
+      purpose: string;
+    }) => {
+      setCityState((prev) => {
+        const { state: updated, loan } = grantIntermunicipalLoan(prev, loanData);
+        multiplayer.proposeLoan(loan);
+        showToast(`Empréstimo de R$ ${loanData.principal.toLocaleString()} concedido à cidade parceira!`, 'success');
+        return updated;
+      });
+    },
+    [multiplayer]
+  );
+
+  // Accept Intermunicipal Loan
+  const handleAcceptLoan = useCallback(
+    (loan: IntermunicipalLoan) => {
+      setCityState((prev) => {
+        const { state: updated } = acceptIntermunicipalLoan(prev, loan);
+        multiplayer.respondToLoan(loan.id, true);
+        showToast(`Empréstimo de R$ ${loan.principal.toLocaleString()} aceito e creditado no Tesouro!`, 'success');
+        return updated;
+      });
+    },
+    [multiplayer]
+  );
+
+  // Reject Intermunicipal Loan
+  const handleRejectLoan = useCallback(
+    (loanId: string) => {
+      setCityState((prev) => {
+        const { state: updated } = rejectIntermunicipalLoan(prev, loanId);
+        multiplayer.respondToLoan(loanId, false);
+        showToast('Proposta de empréstimo recusada.', 'info');
+        return updated;
+      });
+    },
+    [multiplayer]
+  );
+
   const toggleMute = () => {
     const next = sounds.toggleMute();
     setIsMuted(next);
@@ -192,6 +390,19 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans antialiased selection:bg-amber-500 selection:text-slate-950">
+      {/* Banner de Notificação de Negociação e Empréstimo em Tempo Real */}
+      <NegotiationAlertBanner
+        notification={multiplayer.activeNegotiation}
+        onDismiss={multiplayer.clearNegotiationNotification}
+        onOpenRegionalView={() => {
+          if (multiplayer.activeNegotiation?.type === 'loan_proposed') {
+            setIsLoansModalOpen(true);
+          } else {
+            setActiveView('regional');
+          }
+        }}
+      />
+
       {/* Barra de Navegação Superior e Métricas do Município */}
       <MayorTopBar
         state={cityState}
@@ -201,6 +412,10 @@ export default function App() {
         toggleMute={toggleMute}
         isMultiplayerConnected={multiplayer.isConnected}
         pendingDispatchesCount={pendingCount}
+        onOpenEmergencyModal={() => setIsEmergencyModalOpen(true)}
+        onTriggerRandomEmergency={handleTriggerManualEmergency}
+        onOpenLoansModal={() => setIsLoansModalOpen(true)}
+        isSavingOnline={isSavingOnline}
       />
 
       {/* Conteúdo Principal */}
@@ -245,6 +460,9 @@ export default function App() {
             onAdvanceMonth={handleAdvanceMonth}
             onToggleAutoTick={handleToggleAutoTick}
             onOpenPolicies={() => setActiveView('politicas')}
+            onUpdateDepartmentBudget={handleUpdateDepartmentBudget}
+            onUpdateTaxRates={handleUpdateTaxRates}
+            onOpenLoansModal={() => setIsLoansModalOpen(true)}
           />
         )}
 
@@ -263,7 +481,40 @@ export default function App() {
             onSendMessage={multiplayer.sendChatMessage}
           />
         )}
+
+        {activeView === 'ranking' && (
+          <EconomicRankingView
+            cityState={cityState}
+            otherMayors={multiplayer.otherMayors}
+            onOpenLoansWithCity={(cityName, mayorName) => {
+              setIsLoansModalOpen(true);
+            }}
+            onOpenMultiplayer={() => setActiveView('regional')}
+          />
+        )}
       </main>
+
+      {/* Modal de Empréstimos Intermunicipais */}
+      {isLoansModalOpen && (
+        <IntermunicipalLoansModal
+          cityState={cityState}
+          otherMayors={multiplayer.otherMayors}
+          onProposeLoan={handleProposeLoan}
+          onAcceptLoan={handleAcceptLoan}
+          onRejectLoan={handleRejectLoan}
+          onClose={() => setIsLoansModalOpen(false)}
+        />
+      )}
+
+      {/* Modal de Ocorrência Crítica / Emergência Municipal */}
+      {isEmergencyModalOpen && cityState.activeEmergencyEvent && (
+        <EmergencyEventModal
+          event={cityState.activeEmergencyEvent}
+          treasury={cityState.treasury}
+          onResolve={handleResolveEmergency}
+          onClose={() => setIsEmergencyModalOpen(false)}
+        />
+      )}
 
       {/* Toast Notification Flutuante */}
       {toastMessage && (
@@ -290,3 +541,4 @@ export default function App() {
     </div>
   );
 }
+
