@@ -1260,10 +1260,7 @@ export function useTextMultiplayer(
 
   // Identify connected real players (e.g. girlfriend, friend)
   const realPlayers: RegionalMayorProfile[] = (Object.values(otherMayors) as RegionalMayorProfile[]).filter(
-    (m: RegionalMayorProfile) =>
-      m.id !== myPlayerId &&
-      m.isRealPlayer &&
-      (m.cityName !== cityState.cityName || m.name !== cityState.mayorName)
+    (m: RegionalMayorProfile) => m.id !== myPlayerId && m.isRealPlayer
   );
   const partnerMayor: RegionalMayorProfile | null = realPlayers.length > 0 ? realPlayers[0] : null;
   const isPartnerOnline = partnerMayor

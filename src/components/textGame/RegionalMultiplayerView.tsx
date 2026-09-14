@@ -81,7 +81,7 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
   const allMayors = Object.values(otherMayors) as RegionalMayorProfile[];
   const isOther = (m: RegionalMayorProfile) => {
     if (myPlayerId && m.id) return m.id !== myPlayerId;
-    return m.name !== cityState.mayorName || m.cityName !== cityState.cityName;
+    return true;
   };
 
   const realPartners = allMayors.filter((m) => m.isRealPlayer && isOther(m));
@@ -112,16 +112,16 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
     setTimeout(() => setCopyFeedback(null), 5000);
   };
 
-  const handleSendAidToPartner = (amount: number) => {
-    if (!realPartner) return;
+  const handleSendAidToPartner = (targetPartner: RegionalMayorProfile, amount: number) => {
+    if (!targetPartner) return;
     if (cityState.treasury < amount) {
       setAidFeedback(`Tesouro insuficiente. Você possui R$ ${cityState.treasury.toLocaleString()}.`);
       setTimeout(() => setAidFeedback(null), 4000);
       return;
     }
     sounds.playCash();
-    onSendDirectAid?.(amount, 'financeira', `Ajuda emergencial para a Prefeitura de ${realPartner.cityName}`);
-    setAidFeedback(`R$ ${amount.toLocaleString()} transferidos com sucesso para o Tesouro de ${realPartner.name} (${realPartner.cityName})!`);
+    onSendDirectAid?.(amount, 'financeira', `Ajuda emergencial para a Prefeitura de ${targetPartner.cityName}`);
+    setAidFeedback(`R$ ${amount.toLocaleString()} transferidos com sucesso para o Tesouro de ${targetPartner.name} (${targetPartner.cityName})!`);
     setTimeout(() => setAidFeedback(null), 5000);
   };
 
@@ -152,15 +152,15 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
           </p>
 
           {/* Banner de Status de Jogador Real (Namorada/Amigo) */}
-          {realPartner ? (
+          {realPartners.length > 0 ? (
             <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-950/80 border border-emerald-500/80 text-emerald-300 text-xs font-bold shadow-md animate-pulse">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]"></span>
-              🎉 Prefeita {realPartner.name} conectou a cidade {realPartner.cityName} nesta sala!
+              🎉 {realPartners.map((p) => `${p.name} (${p.cityName})`).join(', ')} conectou ao vivo nesta sala!
             </div>
           ) : (
             <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-950/60 border border-amber-500/60 text-amber-300 text-xs font-semibold">
               <Clock className="w-3.5 h-3.5" />
-              Aguardando sua namorada entrar na sala <strong className="text-white underline">{roomId}</strong>. Envie o link abaixo!
+              Aguardando sua namorada entrar na sala <strong className="text-white underline">{roomId}</strong>. Ambos entram automaticamente no mesmo mundo!
             </div>
           )}
         </div>
@@ -335,121 +335,132 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
               </div>
             </div>
 
-            {/* Cidade da Namorada / Jogador Real */}
-            {realPartner ? (
-              <div className="bg-slate-900 border-2 border-emerald-500 rounded-xl p-5 shadow-[0_0_20px_rgba(16,185,129,0.2)] relative overflow-hidden">
-                <div className="flex items-center justify-between mb-3 border-b border-slate-800 pb-3">
-                  <div>
-                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                      🟢 Jogador(a) Real Conectado(a)
-                    </span>
-                    <h3 className="text-xl font-black text-white">{realPartner.cityName}</h3>
-                    <span className="text-xs text-slate-300">
-                      {realPartner.name} ({realPartner.party || 'SEM PARTIDO'})
-                    </span>
+            {/* Cidades de Jogadores Reais Conectados (Namorada / Parceiros) */}
+            {realPartners.length > 0 ? (
+              realPartners.map((partner) => (
+                <div
+                  key={partner.id}
+                  className="bg-slate-900 border-2 border-emerald-500 rounded-xl p-5 shadow-[0_0_20px_rgba(16,185,129,0.2)] relative overflow-hidden"
+                >
+                  <div className="flex items-center justify-between mb-3 border-b border-slate-800 pb-3">
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                        🟢 Jogador(a) Real Conectado(a)
+                      </span>
+                      <h3 className="text-xl font-black text-white">{partner.cityName}</h3>
+                      <span className="text-xs text-slate-300">
+                        {partner.name} ({partner.party || 'SEM PARTIDO'})
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs px-2.5 py-1 rounded font-black bg-emerald-950 text-emerald-300 border border-emerald-500 shadow-sm animate-pulse">
+                        Ao Vivo na Sala {roomId}
+                      </span>
+                      <span className="block text-[10px] text-slate-400 mt-1 font-mono">
+                        CAPAG {partner.fiscalRating || 'A'} | {partner.approvalRating || 65}% Aprov.
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className="text-xs px-2.5 py-1 rounded font-black bg-emerald-950 text-emerald-300 border border-emerald-500 shadow-sm animate-pulse">
-                      Ao Vivo na Sala {roomId}
-                    </span>
-                    <span className="block text-[10px] text-slate-400 mt-1 font-mono">
-                      CAPAG {realPartner.fiscalRating || 'A'} | {realPartner.approvalRating || 65}% Aprov.
-                    </span>
+
+                  {/* Estatísticas da Namorada / Parceiro */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs mb-4">
+                    <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+                      <span className="text-slate-400 block text-[10px] uppercase">População</span>
+                      <strong className="text-sm text-slate-100 font-bold">
+                        {(partner.population || 0).toLocaleString()} hab.
+                      </strong>
+                    </div>
+
+                    <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+                      <span className="text-slate-400 block text-[10px] uppercase">Empregos & Desemprego</span>
+                      <strong className="text-sm text-amber-300 font-bold">
+                        {(partner.jobs || 0).toLocaleString()} ({partner.unemploymentRate ?? 8.5}%)
+                      </strong>
+                    </div>
+
+                    <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+                      <span className="text-slate-400 block text-[10px] uppercase">Turistas por Mês</span>
+                      <strong className="text-sm text-emerald-300 font-bold">
+                        {(partner.touristsPerMonth || 0).toLocaleString()}
+                      </strong>
+                    </div>
+
+                    <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+                      <span className="text-slate-400 block text-[10px] uppercase">Tesouro em Caixa</span>
+                      <strong className="text-sm text-emerald-400 font-bold">
+                        R$ {(partner.treasury || 0).toLocaleString()}
+                      </strong>
+                    </div>
+
+                    <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+                      <span className="text-slate-400 block text-[10px] uppercase">Energia Excedente</span>
+                      <strong
+                        className={`text-sm font-bold ${
+                          (partner.energySurplusMw ?? 0) >= 0 ? 'text-sky-400' : 'text-rose-400'
+                        }`}
+                      >
+                        {(partner.energySurplusMw ?? 0) >= 0
+                          ? `+${partner.energySurplusMw ?? 0}`
+                          : partner.energySurplusMw} MW
+                      </strong>
+                    </div>
+
+                    <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+                      <span className="text-slate-400 block text-[10px] uppercase">Petróleo & Ouro</span>
+                      <strong className="text-sm text-amber-400 font-bold">
+                        {partner.oilProductionBpd ?? 0} bpd | {partner.goldProductionKg ?? 0} kg
+                      </strong>
+                    </div>
+                  </div>
+
+                  {/* Ações Diretas com a Namorada / Parceiro */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-800">
+                    <button
+                      onClick={() => {
+                        sounds.playClick();
+                        setSelectedTargetMayorId(partner.id);
+                        setActiveTab('tratados');
+                      }}
+                      className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg transition-all shadow-sm flex items-center justify-center gap-1"
+                    >
+                      <Handshake className="w-3.5 h-3.5" />
+                      Propor Tratado
+                    </button>
+
+                    <button
+                      onClick={() => handleSendAidToPartner(partner, 50000)}
+                      className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold text-xs rounded-lg transition-all shadow-sm flex items-center justify-center gap-1"
+                      title="Transferir R$ 50.000 do seu tesouro para a prefeitura dela"
+                    >
+                      <DollarSign className="w-3.5 h-3.5" />
+                      Enviar R$ 50k
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        sounds.playClick();
+                        onOpenLoansModal?.();
+                      }}
+                      className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-lg transition-all shadow-sm flex items-center justify-center gap-1"
+                    >
+                      <Building className="w-3.5 h-3.5" />
+                      Empréstimo
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        sounds.playClick();
+                        setActiveTab('chat');
+                      }}
+                      className="px-2.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-lg transition-all shadow-sm flex items-center justify-center gap-1"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      Abrir Chat
+                    </button>
                   </div>
                 </div>
-
-                {/* Estatísticas da Namorada */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs mb-4">
-                  <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                    <span className="text-slate-400 block text-[10px] uppercase">População</span>
-                    <strong className="text-sm text-slate-100 font-bold">
-                      {realPartner.population.toLocaleString()} hab.
-                    </strong>
-                  </div>
-
-                  <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                    <span className="text-slate-400 block text-[10px] uppercase">Empregos & Desemprego</span>
-                    <strong className="text-sm text-amber-300 font-bold">
-                      {realPartner.jobs.toLocaleString()} ({realPartner.unemploymentRate}%)
-                    </strong>
-                  </div>
-
-                  <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                    <span className="text-slate-400 block text-[10px] uppercase">Turistas por Mês</span>
-                    <strong className="text-sm text-emerald-300 font-bold">
-                      {realPartner.touristsPerMonth.toLocaleString()}
-                    </strong>
-                  </div>
-
-                  <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                    <span className="text-slate-400 block text-[10px] uppercase">Tesouro em Caixa</span>
-                    <strong className="text-sm text-emerald-400 font-bold">
-                      R$ {realPartner.treasury.toLocaleString()}
-                    </strong>
-                  </div>
-
-                  <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                    <span className="text-slate-400 block text-[10px] uppercase">Energia Excedente</span>
-                    <strong className={`text-sm font-bold ${realPartner.energySurplusMw >= 0 ? 'text-sky-400' : 'text-rose-400'}`}>
-                      {realPartner.energySurplusMw >= 0 ? `+${realPartner.energySurplusMw}` : realPartner.energySurplusMw} MW
-                    </strong>
-                  </div>
-
-                  <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                    <span className="text-slate-400 block text-[10px] uppercase">Petróleo & Ouro</span>
-                    <strong className="text-sm text-amber-400 font-bold">
-                      {realPartner.oilProductionBpd} bpd | {realPartner.goldProductionKg} kg
-                    </strong>
-                  </div>
-                </div>
-
-                {/* Ações Diretas com a Namorada */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-800">
-                  <button
-                    onClick={() => {
-                      sounds.playClick();
-                      setSelectedTargetMayorId(realPartner.id);
-                      setActiveTab('tratados');
-                    }}
-                    className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg transition-all shadow-sm flex items-center justify-center gap-1"
-                  >
-                    <Handshake className="w-3.5 h-3.5" />
-                    Propor Tratado
-                  </button>
-
-                  <button
-                    onClick={() => handleSendAidToPartner(50000)}
-                    className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold text-xs rounded-lg transition-all shadow-sm flex items-center justify-center gap-1"
-                    title="Transferir R$ 50.000 do seu tesouro para a cidade dela"
-                  >
-                    <DollarSign className="w-3.5 h-3.5" />
-                    Enviar R$ 50k
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      sounds.playClick();
-                      onOpenLoansModal?.();
-                    }}
-                    className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-lg transition-all shadow-sm flex items-center justify-center gap-1"
-                  >
-                    <Building className="w-3.5 h-3.5" />
-                    Empréstimo
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      sounds.playClick();
-                      setActiveTab('chat');
-                    }}
-                    className="px-2.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-lg transition-all shadow-sm flex items-center justify-center gap-1"
-                  >
-                    <MessageSquare className="w-3.5 h-3.5" />
-                    Abrir Chat
-                  </button>
-                </div>
-              </div>
+              ))
             ) : (
               <div className="bg-slate-900 border-2 border-dashed border-slate-800 rounded-xl p-6 flex flex-col items-center justify-center text-center shadow-md">
                 <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-sky-400 mb-3">
@@ -575,22 +586,23 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
               Escolha a Prefeitura com quem deseja negociar o Tratado:
             </span>
             <div className="flex flex-wrap gap-2">
-              {realPartner && (
+              {realPartners.map((rp) => (
                 <button
+                  key={rp.id}
                   onClick={() => {
                     sounds.playClick();
-                    setSelectedTargetMayorId(realPartner.id);
+                    setSelectedTargetMayorId(rp.id);
                   }}
                   className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-2 border transition-all ${
-                    selectedTargetMayorId === realPartner.id
+                    selectedTargetMayorId === rp.id
                       ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md ring-2 ring-emerald-300'
                       : 'bg-emerald-950/60 text-emerald-300 border-emerald-600/50 hover:bg-emerald-900/60'
                   }`}
                 >
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]"></span>
-                  ⭐ {realPartner.name} ({realPartner.cityName} - Jogador Real Online)
+                  ⭐ {rp.name} ({rp.cityName} - Jogador Real Online)
                 </button>
-              )}
+              ))}
 
               {fictitiousMayors.map((fm) => (
                 <button
