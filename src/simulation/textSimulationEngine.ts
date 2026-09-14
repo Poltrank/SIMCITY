@@ -26,6 +26,12 @@ export function createInitialPrefeitoState(setup?: InitialMayorSetup): PrefeitoC
   const chosenParty = setup?.party?.trim() || 'PSD - Partido Social do Desenvolvimento';
   const chosenCityName = setup?.cityName?.trim() || 'Porto da Aliança';
 
+  const realNow = new Date();
+  const realYear = realNow.getFullYear();
+  const realMonth = realNow.getMonth() + 1;
+  const realMonthName = MONTH_NAMES[realNow.getMonth()];
+  const realDay = realNow.getDate();
+
   const initialMinimumWage = 1412; // Salário mínimo / Piso municipal base
   const initialRevenue = 520000;
   const initialExpenses = 440000;
@@ -57,10 +63,13 @@ export function createInitialPrefeitoState(setup?: InitialMayorSetup): PrefeitoC
     cityName: chosenCityName,
     mayorName: chosenMayorName,
     party: chosenParty,
-    year: 2026,
-    month: 1,
-    monthName: 'Janeiro',
-    termMonth: 1,
+    year: realYear,
+    month: realMonth,
+    monthName: realMonthName,
+    day: realDay,
+    termMonth: realMonth,
+    lastRealTimestamp: Date.now(),
+    fractionalTreasuryAccrual: 0,
 
     treasury: 1850000,
     monthlyRevenue: initialRevenue,
