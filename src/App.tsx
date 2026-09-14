@@ -42,6 +42,7 @@ import { EconomicRankingView } from './components/textGame/EconomicRankingView';
 import { IntermunicipalLoansModal } from './components/textGame/IntermunicipalLoansModal';
 import { EmergencyEventModal } from './components/textGame/EmergencyEventModal';
 import { NegotiationAlertBanner } from './components/textGame/NegotiationAlertBanner';
+import { MayorAuthModal } from './components/textGame/MayorAuthModal';
 
 const LOCAL_STORAGE_KEY = 'prefeito_game_state_v1';
 
@@ -65,9 +66,24 @@ export default function App() {
   const [activeModalOutcome, setActiveModalOutcome] = useState<DispatchOutcome | null>(null);
   const [isLoansModalOpen, setIsLoansModalOpen] = useState<boolean>(false);
   const [isEmergencyModalOpen, setIsEmergencyModalOpen] = useState<boolean>(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const hasIdentified = localStorage.getItem('prefeito_identified_mayor_v1');
+      return !hasIdentified;
+    }
+    return false;
+  });
   const [isSavingOnline, setIsSavingOnline] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(sounds.isMuted);
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  const handleSelectMayorProfile = (newState: PrefeitoCityState, _profileId: string) => {
+    setCityState(newState);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('prefeito_identified_mayor_v1', 'true');
+    }
+    showToast(`Gabinete empossado: Prefeito ${newState.mayorName} (${newState.party})`, 'success');
+  };
 
   // Multiplayer Hook with Loan events
   const multiplayer = useTextMultiplayer(cityState, {
@@ -416,6 +432,7 @@ export default function App() {
         onTriggerRandomEmergency={handleTriggerManualEmergency}
         onOpenLoansModal={() => setIsLoansModalOpen(true)}
         isSavingOnline={isSavingOnline}
+        onOpenAuthModal={() => setIsAuthModalOpen(true)}
       />
 
       {/* Conteúdo Principal */}
@@ -537,6 +554,15 @@ export default function App() {
       <DispatchModal
         outcome={activeModalOutcome}
         onClose={() => setActiveModalOutcome(null)}
+      />
+
+      {/* Modal de Login e Identificação do Prefeito (Nome & Partido) */}
+      <MayorAuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        currentState={cityState}
+        onSelectProfile={handleSelectMayorProfile}
+        initialTab="login"
       />
     </div>
   );

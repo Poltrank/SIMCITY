@@ -23,6 +23,8 @@ import {
   AlertTriangle,
   CloudCheck,
   PlusCircle,
+  LogIn,
+  User,
 } from 'lucide-react';
 import { PrefeitoCityState } from '../../types/textGame';
 import { sounds } from '../../audio/soundManager';
@@ -39,6 +41,7 @@ interface MayorTopBarProps {
   onTriggerRandomEmergency?: () => void;
   onOpenLoansModal?: () => void;
   isSavingOnline?: boolean;
+  onOpenAuthModal?: () => void;
 }
 
 export const MayorTopBar: React.FC<MayorTopBarProps> = ({
@@ -53,6 +56,7 @@ export const MayorTopBar: React.FC<MayorTopBarProps> = ({
   onTriggerRandomEmergency,
   onOpenLoansModal,
   isSavingOnline,
+  onOpenAuthModal,
 }) => {
   const getRatingBadge = (rating: string) => {
     switch (rating) {
@@ -73,7 +77,16 @@ export const MayorTopBar: React.FC<MayorTopBarProps> = ({
       <div className="px-4 py-2.5 max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
         {/* Brasão & Cidade */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-600 to-amber-800 flex items-center justify-center shadow-md border border-amber-500/40 text-white flex-shrink-0">
+          <div
+            onClick={() => {
+              if (onOpenAuthModal) {
+                sounds.playClick();
+                onOpenAuthModal();
+              }
+            }}
+            className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-600 to-amber-800 flex items-center justify-center shadow-md border border-amber-500/40 text-white flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-amber-400 transition-all"
+            title="Clique para abrir Login do Prefeito / Mandatos"
+          >
             <Building2 className="w-5 h-5 text-amber-100" />
           </div>
           <div>
@@ -90,8 +103,20 @@ export const MayorTopBar: React.FC<MayorTopBarProps> = ({
                 CAPAG {state.fiscalRating}
               </span>
             </div>
-            <p className="text-xs text-slate-400 flex items-center gap-1">
-              <span className="text-amber-300 font-medium">{state.mayorName}</span>
+            <p
+              onClick={() => {
+                if (onOpenAuthModal) {
+                  sounds.playClick();
+                  onOpenAuthModal();
+                }
+              }}
+              className="text-xs text-slate-400 flex items-center gap-1 cursor-pointer hover:text-amber-300 transition-colors"
+              title="Clique para trocar Prefeito ou Partido"
+            >
+              <span className="text-amber-300 font-medium hover:underline flex items-center gap-1">
+                <User className="w-3 h-3 text-amber-400" />
+                {state.mayorName}
+              </span>
               <span className="text-slate-600">•</span>
               <span className="text-slate-400 truncate max-w-[180px] md:max-w-none">{state.party}</span>
             </p>
@@ -153,8 +178,22 @@ export const MayorTopBar: React.FC<MayorTopBarProps> = ({
           )}
         </div>
 
-        {/* Áudio & Status */}
+        {/* Áudio & Status & Login */}
         <div className="flex items-center gap-2">
+          {onOpenAuthModal && (
+            <button
+              onClick={() => {
+                sounds.playClick();
+                onOpenAuthModal();
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 transition-colors shadow-sm"
+              title="Entrar com outro Prefeito ou Partido"
+            >
+              <LogIn className="w-3.5 h-3.5 text-amber-400" />
+              <span>Login Prefeito</span>
+            </button>
+          )}
+
           <button
             onClick={() => {
               toggleMute();
