@@ -130,19 +130,10 @@ export function useTextMultiplayer(
   cityState: PrefeitoCityState,
   options?: UseTextMultiplayerOptions
 ) {
-  // Read initial room from URL params (?sala=... or ?room=... or ?r=...) or default to BRASIL1
-  const [roomId, setRoomId] = useState<string>(() => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const urlRoom = params.get('sala') || params.get('room') || params.get('r');
-      if (urlRoom && urlRoom.trim()) {
-        return urlRoom.toUpperCase().trim();
-      }
-    } catch (e) {}
-    return 'BRASIL1';
-  });
+  // Unified single world for all players: Brasil
+  const [roomId, setRoomId] = useState<string>('BRASIL');
 
-  const [isConnected, setIsConnected] = useState<boolean>(false);
+  const [isConnected, setIsConnected] = useState<boolean>(true);
   const [myRole, setMyRole] = useState<'mayor_north' | 'mayor_south' | 'spectator'>('mayor_north');
 
   // Synchronously initialize player ID so it is never empty on first connect
@@ -175,8 +166,8 @@ export function useTextMultiplayer(
 
   const wsRef = useRef<WebSocket | null>(null);
   const pingIntervalRef = useRef<number | null>(null);
-  const activeRoomRef = useRef<string>(roomId);
-  activeRoomRef.current = roomId;
+  const activeRoomRef = useRef<string>('BRASIL');
+  activeRoomRef.current = 'BRASIL';
 
   const cityStateRef = useRef<PrefeitoCityState>(cityState);
   cityStateRef.current = cityState;
@@ -313,15 +304,17 @@ export function useTextMultiplayer(
         } catch (e) {}
       }
 
-      const cleanRoom = targetRoomId.toUpperCase().trim() || 'BRASIL1';
-      setRoomId(cleanRoom);
-      activeRoomRef.current = cleanRoom;
+      const cleanRoom = 'BRASIL';
+      setRoomId('BRASIL');
+      activeRoomRef.current = 'BRASIL';
 
-      // Update URL with current room for easy sharing with partner
+      // Clean URL params since the game world is now automatically unified for everyone
       try {
         const url = new URL(window.location.href);
-        url.searchParams.set('sala', cleanRoom);
-        window.history.replaceState({}, '', url.toString());
+        url.searchParams.delete('sala');
+        url.searchParams.delete('room');
+        url.searchParams.delete('r');
+        window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
       } catch (e) {}
 
       // Immediately register via HTTP REST (instant feedback & mobile fallback)

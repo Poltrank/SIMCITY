@@ -99,19 +99,6 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
     }
   }, [realPartner, selectedTargetMayorId]);
 
-  const handleCopyLink = () => {
-    sounds.playClick();
-    const origin = window.location.origin;
-    const pathname = window.location.pathname;
-    const inviteUrl = `${origin}${pathname}?sala=${encodeURIComponent(roomId)}`;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(inviteUrl);
-    }
-    onShareRoom?.();
-    setCopyFeedback('Link copiado! Envie no WhatsApp ou celular da sua namorada para ela entrar direto!');
-    setTimeout(() => setCopyFeedback(null), 5000);
-  };
-
   const handleSendAidToPartner = (targetPartner: RegionalMayorProfile, amount: number) => {
     if (!targetPartner) return;
     if (cityState.treasury < amount) {
@@ -136,75 +123,47 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
 
   return (
     <div className="space-y-6">
-      {/* Header & Conexão de Sala */}
+      {/* Header do Servidor Único Nacional - Brasil Ao Vivo */}
       <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-sky-400 font-semibold text-xs uppercase tracking-wider mb-1">
-            <Radio className="w-4 h-4 animate-pulse" />
-            Consórcio Intermunicipal de Desenvolvimento Regional
+          <div className="flex items-center gap-2 text-emerald-400 font-semibold text-xs uppercase tracking-wider mb-1">
+            <Radio className="w-4 h-4 animate-pulse text-emerald-400" />
+            Servidor Central Nacional • Brasil Ao Vivo
           </div>
           <h2 className="text-xl md:text-2xl font-black text-white">
-            Multijogador: Integração Entre Prefeitos Vizinhos
+            Mundo Metropolitano: Brasil
           </h2>
           <p className="text-xs md:text-sm text-slate-300 mt-1 max-w-xl leading-relaxed">
-            Conecte dois celulares ou computadores na mesma Sala (<strong className="text-sky-300">{roomId}</strong>) para
-            negociar tratados de turistas, intercâmbio de empregos e cooperação financeira!
+            Servidor Único Nacional — Todos os prefeitos governam no mesmo território brasileiro. Acesso direto e automático para todos que entram no jogo!
           </p>
 
-          {/* Banner de Status de Jogador Real (Namorada/Amigo) */}
+          {/* Banner de Status de Jogador Real (Namorada/Parceiro) */}
           {realPartners.length > 0 ? (
-            <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-950/80 border border-emerald-500/80 text-emerald-300 text-xs font-bold shadow-md animate-pulse">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]"></span>
-              🎉 {realPartners.map((p) => `${p.name} (${p.cityName})`).join(', ')} conectou ao vivo nesta sala!
+            <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-950/80 border border-emerald-500/80 text-emerald-300 text-xs font-bold shadow-md">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399] animate-ping"></span>
+              🎉 {realPartners.map((p) => `${p.name} (${p.cityName})`).join(', ')} conectado(a) ao vivo no Brasil!
             </div>
           ) : (
-            <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-950/60 border border-amber-500/60 text-amber-300 text-xs font-semibold">
-              <Clock className="w-3.5 h-3.5" />
-              Aguardando sua namorada entrar na sala <strong className="text-white underline">{roomId}</strong>. Ambos entram automaticamente no mesmo mundo!
+            <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-sky-950/70 border border-sky-500/60 text-sky-200 text-xs font-semibold">
+              <Radio className="w-3.5 h-3.5 animate-pulse text-sky-400" />
+              Conectado ao Servidor Central do Brasil. Assim que o outro celular abrir o jogo, a cidade parceira aparecerá aqui automaticamente!
             </div>
           )}
         </div>
 
-        {/* Controles de Sala e Compartilhamento */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          {/* Botão de Copiar Link da Sala */}
-          <button
-            onClick={handleCopyLink}
-            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 whitespace-nowrap"
-            title="Copiar link para enviar para sua namorada entrar pelo celular"
-          >
-            <Share2 className="w-4 h-4" />
-            Convidar Namorada / Copiar Link
-          </button>
-
-          {/* Input de Código de Região */}
-          <div className="flex items-center gap-2 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
-            <input
-              type="text"
-              value={inputRoom}
-              onChange={(e) => setInputRoom(e.target.value.toUpperCase())}
-              placeholder="SALA (EX: CASAL1)"
-              className="bg-slate-900 border border-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold text-white uppercase tracking-wider focus:outline-none focus:border-sky-500 w-32"
-            />
-            <button
-              onClick={() => {
-                sounds.playClick();
-                onConnectRoom(inputRoom);
-              }}
-              className="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-lg transition-colors whitespace-nowrap"
-            >
-              {isConnected ? 'Entrar' : 'Conectar'}
-            </button>
+        {/* Indicador de Status de Conexão Central */}
+        <div className="flex items-center gap-3 bg-slate-950 p-3 rounded-xl border border-slate-800">
+          <div className="w-3 h-3 rounded-full bg-emerald-500 shadow-[0_0_10px_#10b981] animate-pulse"></div>
+          <div>
+            <div className="text-xs font-bold text-white uppercase tracking-wider">
+              Servidor: Brasil
+            </div>
+            <div className="text-[11px] text-emerald-400 font-medium">
+              Sincronização em Tempo Real Ativa
+            </div>
           </div>
         </div>
       </div>
-
-      {copyFeedback && (
-        <div className="p-3 bg-emerald-950/90 border border-emerald-500 text-emerald-200 text-xs font-bold rounded-lg shadow-lg flex items-center gap-2 animate-bounce">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-          <span>{copyFeedback}</span>
-        </div>
-      )}
 
       {/* Banner de Ajuda Financeira Enviada */}
       {aidFeedback && (
@@ -464,23 +423,18 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
             ) : (
               <div className="bg-slate-900 border-2 border-dashed border-slate-800 rounded-xl p-6 flex flex-col items-center justify-center text-center shadow-md">
                 <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-sky-400 mb-3">
-                  <Users className="w-6 h-6 animate-pulse" />
+                  <Radio className="w-6 h-6 animate-pulse text-sky-400" />
                 </div>
                 <h4 className="text-base font-bold text-white mb-1">
-                  Aguardando Segundo Prefeito(a) (Namorada / Amigo)
+                  Aguardando Segundo Prefeito(a) no Brasil
                 </h4>
-                <p className="text-xs text-slate-300 max-w-md mb-4 leading-relaxed">
-                  O mundo regional já está rodando com você e as 3 cidades fictícias abaixo. Assim que sua namorada
-                  abrir o jogo no celular dela na sala <strong className="text-sky-300">{roomId}</strong>, a prefeitura dela
-                  aparecerá aqui automaticamente em tempo real!
+                <p className="text-xs text-slate-300 max-w-md leading-relaxed">
+                  O servidor nacional já está ativo! Assim que sua namorada abrir o jogo no celular dela, a prefeitura dela conectará automaticamente neste mesmo mundo em tempo real.
                 </p>
-                <button
-                  onClick={handleCopyLink}
-                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl shadow-lg flex items-center gap-2 transition-transform hover:scale-105"
-                >
-                  <Share2 className="w-4 h-4" />
-                  Copiar Link Direto para o Celular Dela
-                </button>
+                <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-950/80 border border-emerald-500/50 rounded-full text-emerald-300 text-xs font-semibold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  Servidor Nacional Brasil Online — Aguardando Conexão
+                </div>
               </div>
             )}
           </div>
