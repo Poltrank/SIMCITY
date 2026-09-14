@@ -7,9 +7,19 @@ import {
   IntermunicipalLoan,
 } from '../types/textGame';
 
-// Shared global topic and central cloud storage for all players
+// Shared global topic
 export const GLOBAL_WORLD_TOPIC = 'prefeito_sim_brasil_v2/mundo_ao_vivo';
-export const CLOUD_ROOM_ENDPOINT = 'https://api.restful-api.dev/objects/ff808181a09d98f701a0a18b905907ce';
+
+// 4 Dedicated Cloud Player Slots (each player writes exclusively to their own slot to eliminate race-conditions)
+export const DEDICATED_SLOTS = [
+  { id: 'ff808181a09d98f701a0a19ce0000814', slot: 1, name: 'simcity_player_slot_1' },
+  { id: 'ff808181a09d98f701a0a19d00fa0815', slot: 2, name: 'simcity_player_slot_2' },
+  { id: 'ff808181a09d98f701a0a19d375d0816', slot: 3, name: 'simcity_player_slot_3' },
+  { id: 'ff808181a09d98f701a0a19e50a90817', slot: 4, name: 'simcity_player_slot_4' },
+];
+
+export const ALL_SLOTS_URL =
+  'https://api.restful-api.dev/objects?' + DEDICATED_SLOTS.map((s) => 'id=' + s.id).join('&');
 
 export interface WorldSyncPayload {
   type:
@@ -33,13 +43,10 @@ export interface WorldSyncPayload {
   timestamp: number;
 }
 
-interface CloudRoomState {
-  room: string;
-  mayors: Record<string, RegionalMayorProfile>;
-  treaties: RegionalTreaty[];
-  chat: RegionalChatMessage[];
-  aid: DirectAidEvent[];
-  lastUpdate: number;
+export interface OutboxItem {
+  id: string;
+  payload: WorldSyncPayload;
+  timestamp: number;
 }
 
 type SyncListener = (payload: WorldSyncPayload) => void;
@@ -53,142 +60,168 @@ class GlobalWorldSyncService {
     'wss://test.mosquitto.org:8081',
     'wss://broker.emqx.io:8084/mqtt',
   ];
-  private pendingBroadcasts: WorldSyncPayload[] = [];
+
+  private localPlayerId: string = '';
+  private localProfile: RegionalMayorProfile | null = null;
+  private myAssignedSlotId: string = '';
+  private outbox: OutboxItem[] = [];
+  private processedEventIds: Set<string> = new Set();
   private isSyncingCloud: boolean = false;
-  private knownMessageIds: Set<string> = new Set();
+  private cloudInterval: any = null;
 
   constructor() {
+    // Restore assigned slot if previously stored
+    if (typeof window !== 'undefined') {
+      try {
+        this.myAssignedSlotId = localStorage.getItem('prefeito_assigned_slot_id') || '';
+      } catch (e) {}
+    }
+
     this.connectMqtt();
     this.startCloudPoller();
+  }
+
+  public setLocalPlayer(playerId: string, profile: RegionalMayorProfile) {
+    this.localPlayerId = playerId;
+    this.localProfile = profile;
   }
 
   private startCloudPoller() {
     if (typeof window === 'undefined') return;
 
-    // Fast cloud sync interval every 1.8 seconds over standard HTTPS port 443 (works everywhere)
-    setInterval(() => {
+    // Fast, persistent HTTPS polling every 1.5 seconds on standard port 443 with CORS
+    this.cloudInterval = setInterval(() => {
       this.syncWithCloud();
-    }, 1800);
+    }, 1500);
 
-    // Initial sync
+    // Initial immediate sync
     setTimeout(() => {
       this.syncWithCloud();
-    }, 300);
+    }, 200);
   }
 
-  private async syncWithCloud() {
+  public async syncWithCloud() {
     if (this.isSyncingCloud) return;
     this.isSyncingCloud = true;
 
     try {
-      // 1. Fetch current cloud state
-      const res = await fetch(CLOUD_ROOM_ENDPOINT, {
+      const now = Date.now();
+
+      // 1. Fetch all 4 player slots in a single fast GET request
+      const res = await fetch(ALL_SLOTS_URL, {
         headers: { Accept: 'application/json' },
       });
 
-      if (res.ok) {
-        this.isConnected = true;
-        const body = await res.json();
-        const state: CloudRoomState = body.data || {
-          room: 'BRASIL',
-          mayors: {},
-          treaties: [],
-          chat: [],
-          aid: [],
-          lastUpdate: Date.now(),
+      if (!res.ok) {
+        this.isSyncingCloud = false;
+        return;
+      }
+
+      this.isConnected = true;
+      const slotsArray: Array<{ id: string; name: string; data?: any }> = await res.json();
+
+      // 2. Claim or verify our slot assignment
+      let assignedSlot = slotsArray.find((s) => s.id === this.myAssignedSlotId);
+
+      // If we don't have an assigned slot yet, or someone else took it:
+      if (!assignedSlot || (assignedSlot.data?.playerId && assignedSlot.data.playerId !== this.localPlayerId)) {
+        // Check if any slot currently has our playerId
+        const existingMine = slotsArray.find((s) => s.data?.playerId === this.localPlayerId);
+        if (existingMine) {
+          this.myAssignedSlotId = existingMine.id;
+          assignedSlot = existingMine;
+        } else {
+          // Find first vacant slot (where lastSeen is > 30s ago or empty)
+          const vacant = slotsArray.find(
+            (s) => !s.data?.lastSeen || now - s.data.lastSeen > 30000
+          );
+          if (vacant) {
+            this.myAssignedSlotId = vacant.id;
+            assignedSlot = vacant;
+          } else {
+            // Pick the oldest one
+            const sorted = [...slotsArray].sort(
+              (a, b) => (a.data?.lastSeen || 0) - (b.data?.lastSeen || 0)
+            );
+            this.myAssignedSlotId = sorted[0]?.id || DEDICATED_SLOTS[0].id;
+            assignedSlot = sorted[0];
+          }
+        }
+
+        try {
+          localStorage.setItem('prefeito_assigned_slot_id', this.myAssignedSlotId);
+        } catch (e) {}
+      }
+
+      // 3. If local profile exists, push our own data to our slot (via PUT)
+      if (this.localPlayerId && this.localProfile && assignedSlot) {
+        const slotConfig = DEDICATED_SLOTS.find((s) => s.id === this.myAssignedSlotId) || DEDICATED_SLOTS[0];
+        const mySlotData = {
+          slot: slotConfig.slot,
+          playerId: this.localPlayerId,
+          mayorName: this.localProfile.name,
+          cityName: this.localProfile.cityName,
+          profile: {
+            ...this.localProfile,
+            isRealPlayer: true,
+            isOnline: true,
+            lastUpdated: now,
+          },
+          lastSeen: now,
+          outbox: this.outbox.slice(-15),
         };
 
-        // Notify listeners of all active other mayors
-        const now = Date.now();
-        if (state.mayors) {
-          Object.values(state.mayors).forEach((mayor) => {
-            // Check if active in the last 3 minutes
-            if (mayor && mayor.id && (!mayor.lastUpdated || now - mayor.lastUpdated < 180000)) {
-              this.notifyListeners({
-                type: 'heartbeat',
-                senderId: mayor.id,
-                senderName: mayor.name,
-                senderCity: mayor.cityName,
-                profile: mayor,
-                timestamp: mayor.lastUpdated || now,
-              });
-            }
-          });
-        }
+        // Fire PUT in background without blocking polling
+        fetch(`https://api.restful-api.dev/objects/${this.myAssignedSlotId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: slotConfig.name,
+            data: mySlotData,
+          }),
+        }).catch(() => {});
+      }
 
-        // Notify of any new chat messages
-        if (Array.isArray(state.chat)) {
-          state.chat.slice(-10).forEach((msg) => {
-            if (msg && msg.id && !this.knownMessageIds.has(msg.id)) {
-              this.knownMessageIds.add(msg.id);
-              this.notifyListeners({
-                type: 'chat',
-                senderId: 'cloud',
-                message: msg,
-                timestamp: Date.now(),
-              });
-            }
-          });
-        }
+      // 4. Process all OTHER slots (other real mayors online!)
+      for (const otherSlot of slotsArray) {
+        if (!otherSlot || otherSlot.id === this.myAssignedSlotId) continue;
+        const otherData = otherSlot.data;
+        if (!otherData || !otherData.playerId || otherData.playerId === this.localPlayerId) continue;
 
-        // Notify of any treaties
-        if (Array.isArray(state.treaties)) {
-          state.treaties.forEach((treaty) => {
-            if (treaty && treaty.id) {
-              const key = `treaty_${treaty.id}_${treaty.status}`;
-              if (!this.knownMessageIds.has(key)) {
-                this.knownMessageIds.add(key);
-                this.notifyListeners({
-                  type: treaty.status === 'active' ? 'treaty_ratified' : 'treaty_proposed',
-                  senderId: 'cloud',
-                  treaty,
-                  timestamp: treaty.timestamp || Date.now(),
-                });
+        const isOnline = otherData.lastSeen && now - otherData.lastSeen < 45000;
+        if (otherData.profile && isOnline) {
+          const partnerProfile: RegionalMayorProfile = {
+            ...otherData.profile,
+            isRealPlayer: true,
+            isOnline: true,
+            lastUpdated: otherData.lastSeen || now,
+          };
+
+          // Notify listeners of the active real mayor!
+          this.notifyListeners({
+            type: 'heartbeat',
+            senderId: otherData.playerId,
+            senderName: otherData.mayorName,
+            senderCity: otherData.cityName,
+            profile: partnerProfile,
+            timestamp: otherData.lastSeen || now,
+          });
+
+          // Check other player's outbox for incoming events (chats, treaties, aid, loans)
+          if (Array.isArray(otherData.outbox)) {
+            for (const item of otherData.outbox) {
+              if (item && item.id && !this.processedEventIds.has(item.id)) {
+                this.processedEventIds.add(item.id);
+                if (item.payload) {
+                  this.notifyListeners(item.payload);
+                }
               }
             }
-          });
-        }
-
-        // Process any queued pending broadcast actions
-        if (this.pendingBroadcasts.length > 0) {
-          const toSend = [...this.pendingBroadcasts];
-          this.pendingBroadcasts = [];
-
-          let stateChanged = false;
-          toSend.forEach((p) => {
-            if (p.type === 'heartbeat' && p.profile) {
-              state.mayors[p.profile.id] = p.profile;
-              stateChanged = true;
-            } else if (p.type === 'chat' && p.message) {
-              state.chat = [...(state.chat || []).slice(-30), p.message];
-              this.knownMessageIds.add(p.message.id);
-              stateChanged = true;
-            } else if (p.type === 'treaty_proposed' && p.treaty) {
-              state.treaties = [p.treaty, ...(state.treaties || []).filter((t) => t.id !== p.treaty!.id)];
-              stateChanged = true;
-            } else if ((p.type === 'treaty_ratified' || p.type === 'treaty_rejected') && p.treaty) {
-              state.treaties = (state.treaties || []).map((t) =>
-                t.id === p.treaty!.id ? { ...t, status: p.type === 'treaty_ratified' ? 'active' : 'rejected' } : t
-              );
-              stateChanged = true;
-            } else if (p.type === 'direct_aid' && p.aidEvent) {
-              state.aid = [p.aidEvent, ...(state.aid || []).slice(-10)];
-              stateChanged = true;
-            }
-          });
-
-          if (stateChanged) {
-            state.lastUpdate = Date.now();
-            await fetch(CLOUD_ROOM_ENDPOINT, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ name: body.name || 'simcity_brasil_unified_room_v2', data: state }),
-            });
           }
         }
       }
     } catch (e) {
-      // Cloud sync will retry on next tick
+      // Cloud sync failure will automatically retry on next tick (1.5s)
     } finally {
       this.isSyncingCloud = false;
     }
@@ -199,7 +232,6 @@ class GlobalWorldSyncService {
 
     try {
       const brokerUrl = this.brokers[this.currentBrokerIndex];
-      // Keep client ID <= 22 characters for MQTT 3.1 compatibility
       let clientId = localStorage.getItem('prefeito_mqtt_cid');
       if (!clientId) {
         clientId = 'pf_' + Math.random().toString(36).substring(2, 8);
@@ -267,9 +299,21 @@ class GlobalWorldSyncService {
       timestamp: Date.now(),
     };
 
-    // Queue for cloud sync over HTTPS
-    this.pendingBroadcasts.push(fullPayload);
-    // Trigger immediate cloud push
+    if (payload.type === 'heartbeat' && payload.profile) {
+      this.localProfile = payload.profile;
+      this.localPlayerId = payload.senderId;
+    }
+
+    // Add to outbox for cloud slot replication
+    const eventId = `evt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    this.processedEventIds.add(eventId);
+    this.outbox.push({
+      id: eventId,
+      payload: fullPayload,
+      timestamp: Date.now(),
+    });
+
+    // Immediate cloud push
     this.syncWithCloud();
 
     // Also send via MQTT if connected

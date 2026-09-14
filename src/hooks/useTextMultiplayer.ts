@@ -669,15 +669,21 @@ export function useTextMultiplayer(
     syncCityProfileHttp,
   ]);
 
-  // Auto-connect to initial room on mount and run background heartbeat / poll
+  // Keep local player profile updated in worldSync service
   useEffect(() => {
-    connectToRoom(activeRoomRef.current);
+    const profile = buildProfilePayload(cityState, myRole, myPlayerId);
+    worldSync.setLocalPlayer(myPlayerId, profile);
+  }, [cityState, myRole, myPlayerId, buildProfilePayload]);
+
+  // Auto-connect to Brasil room on mount and maintain background heartbeat
+  useEffect(() => {
+    connectToRoom('BRASIL');
 
     // Fast heartbeat & sync: sends city state and gets other players every 2 seconds
     const pollInterval = setInterval(() => {
-      sendHeartbeatHttp(activeRoomRef.current, myPlayerId);
+      sendHeartbeatHttp('BRASIL', myPlayerId);
 
-      // Broadcast to Global Live World via cloud MQTT relay
+      // Broadcast to Global Live World via cloud sync
       try {
         const currentProfile = buildProfilePayload(cityStateRef.current, myRole, myPlayerId);
         worldSync.broadcast({
@@ -691,7 +697,8 @@ export function useTextMultiplayer(
     }, 2000);
 
     return () => clearInterval(pollInterval);
-  }, [connectToRoom, sendHeartbeatHttp, myPlayerId, buildProfilePayload, myRole]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myPlayerId]);
 
   // Subscribe to Global Live World cloud sync (MQTT broker across all networks & devices)
   useEffect(() => {
