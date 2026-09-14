@@ -23,7 +23,9 @@ app.get('/api/health', (req, res) => {
 interface MayorPlayer {
   id: string;
   name: string;
-  role: 'mayor_north' | 'mayor_south' | 'spectator';
+  cityName?: string;
+  party?: string;
+  role: string;
   color: string;
   cursor?: { x: number; y: number };
   treasury: number;
@@ -200,9 +202,13 @@ wss.on('connection', (ws: ClientWS) => {
         ws.roomId = room.id;
         ws.playerId = playerId;
 
-        // Auto-assign role if needed: first mayor is north, second is south
+        // Auto-assign mayoral role: north, south, or neighbor mayors
+        const playerIndex = Object.keys(room.players).length;
+        const colorPalette = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f97316'];
+        const assignedColor = colorPalette[playerIndex % colorPalette.length];
+
         const existingRoles = Object.values(room.players).map((p) => p.role);
-        let assignedRole: 'mayor_north' | 'mayor_south' | 'spectator' = 'spectator';
+        let assignedRole = `mayor_neighbor_${playerIndex + 1}`;
         if (!existingRoles.includes('mayor_north')) {
           assignedRole = 'mayor_north';
         } else if (!existingRoles.includes('mayor_south')) {
@@ -211,9 +217,11 @@ wss.on('connection', (ws: ClientWS) => {
 
         const newPlayer: MayorPlayer = {
           id: playerId,
-          name: data.playerName || (assignedRole === 'mayor_north' ? 'Prefeito Norte' : assignedRole === 'mayor_south' ? 'Prefeito Sul' : 'Observador'),
+          name: data.playerName || (assignedRole === 'mayor_north' ? 'Prefeito Norte' : assignedRole === 'mayor_south' ? 'Prefeito Sul' : `Prefeito Vizinho ${playerIndex + 1}`),
+          cityName: data.cityName || `Cidade ${playerIndex + 1}`,
+          party: data.party || 'PARTIDO CIDADÃO',
           role: data.preferredRole || assignedRole,
-          color: assignedRole === 'mayor_north' ? '#3b82f6' : assignedRole === 'mayor_south' ? '#10b981' : '#a855f7',
+          color: assignedColor,
           treasury: 25000,
           population: 150,
         };

@@ -43,6 +43,7 @@ import { IntermunicipalLoansModal } from './components/textGame/IntermunicipalLo
 import { EmergencyEventModal } from './components/textGame/EmergencyEventModal';
 import { NegotiationAlertBanner } from './components/textGame/NegotiationAlertBanner';
 import { MayorAuthModal } from './components/textGame/MayorAuthModal';
+import { MayorNegotiationsView } from './components/textGame/MayorNegotiationsView';
 
 const LOCAL_STORAGE_KEY = 'prefeito_game_state_v1';
 
@@ -62,7 +63,7 @@ export default function App() {
     return createInitialPrefeitoState();
   });
 
-  const [activeView, setActiveView] = useState<'mesa' | 'secretarias' | 'politicas' | 'gazeta' | 'financas' | 'regional' | 'ranking'>('mesa');
+  const [activeView, setActiveView] = useState<'mesa' | 'secretarias' | 'politicas' | 'gazeta' | 'financas' | 'regional' | 'ranking' | 'negociar'>('mesa');
   const [activeModalOutcome, setActiveModalOutcome] = useState<DispatchOutcome | null>(null);
   const [isLoansModalOpen, setIsLoansModalOpen] = useState<boolean>(false);
   const [isEmergencyModalOpen, setIsEmergencyModalOpen] = useState<boolean>(false);
@@ -295,15 +296,15 @@ export default function App() {
   // Department Budget Adjustment
   const handleUpdateDepartmentBudget = useCallback(
     (
-      dept: 'educacao' | 'saude' | 'segurancaGuarda' | 'bombeirosDefesaCivil' | 'energiaIluminacao',
+      dept: any,
       amount: number,
       focus: string
     ) => {
       setCityState((prev) => {
-        const updated = setDepartmentBudgetPolicy(prev, dept, amount, focus);
+        const result = setDepartmentBudgetPolicy(prev, dept, amount, focus);
         sounds.playStamp();
-        showToast('Orçamento da secretaria atualizado pelo Chefe do Executivo.', 'success');
-        return updated;
+        showToast(result.message || 'Orçamento da secretaria atualizado pelo Chefe do Executivo.', 'success');
+        return result.state;
       });
     },
     []
@@ -312,16 +313,19 @@ export default function App() {
   // Tax Rates Adjustment
   const handleUpdateTaxRates = useCallback(
     (rates: {
+      iptuPobresPercent?: number;
+      iptuMediosPercent?: number;
+      iptuRicosPercent?: number;
       iptuPercent: number;
       issPercent: number;
       itbiPercent: number;
       taxaIluminacaoCip: number;
     }) => {
       setCityState((prev) => {
-        const updated = setTaxRatesPolicy(prev, rates);
+        const result = setTaxRatesPolicy(prev, rates);
         sounds.playStamp();
-        showToast('Código tributário municipal republicado no Diário Oficial!', 'success');
-        return updated;
+        showToast(result.message || 'Código tributário municipal republicado no Diário Oficial!', 'success');
+        return result.state;
       });
     },
     []
@@ -507,6 +511,23 @@ export default function App() {
               setIsLoansModalOpen(true);
             }}
             onOpenMultiplayer={() => setActiveView('regional')}
+          />
+        )}
+
+        {activeView === 'negociar' && (
+          <MayorNegotiationsView
+            cityState={cityState}
+            otherMayors={multiplayer.otherMayors}
+            treaties={multiplayer.treaties}
+            chatMessages={multiplayer.chatMessages}
+            myRole={multiplayer.myRole}
+            isConnected={multiplayer.isConnected}
+            roomId={multiplayer.roomId}
+            onProposeTreaty={multiplayer.proposeTreaty}
+            onRespondTreaty={multiplayer.respondToTreaty}
+            onSendMessage={multiplayer.sendChatMessage}
+            onSendDirectAid={multiplayer.sendDirectAid}
+            onOpenLoansModal={() => setIsLoansModalOpen(true)}
           />
         )}
       </main>

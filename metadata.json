@@ -1,6 +1,6 @@
 {
   "name": "SimCity Web - Construtor de Cidades",
-  "description": "Simulador municipal realista em sistema de textos: governe como prefeito na vida real com despachos de 1 minuto, prospecção de petróleo e ouro, BNDES, turismo, empregos e multijogador intermunicipal em tempo real.",
+  "description": "Simulador municipal multiplayer em tempo real: governe como prefeito vizinho na mesma região metropolitana, negocie tratados e empréstimos intermunicipais, determine impostos progressivos para ricos, médios e pobres, controle orçamentos de polícia, saúde, bombeiros e saneamento, e realize obras com tempo escalonado por custo em um mandato contínuo.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

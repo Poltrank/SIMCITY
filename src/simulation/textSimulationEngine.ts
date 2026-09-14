@@ -258,6 +258,9 @@ export function startMunicipalDispatch(
   }
 
   const now = Date.now();
+  const totalSeconds = Math.ceil(action.durationMs / 1000);
+  const durationMinutes = Math.max(1, Math.round(action.durationMs / 60000));
+
   const newDispatch: ActiveDispatch = {
     id: 'disp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
     actionId: action.id,
@@ -266,12 +269,12 @@ export function startMunicipalDispatch(
     badge: action.badge,
     cost: action.cost,
     startTime: now,
-    durationMs: action.durationMs, // 60000ms = 1 minute
+    durationMs: action.durationMs,
     endTime: now + action.durationMs,
     currentPhaseText: action.bureaucracyPhases[0].label,
     currentDepartment: action.bureaucracyPhases[0].department,
     progress: 0,
-    secondsRemaining: 60,
+    secondsRemaining: totalSeconds,
     completed: false,
   };
 
@@ -286,8 +289,12 @@ export function startMunicipalDispatch(
         source: 'Diário Oficial',
         type: 'decreto',
         dateStr: `${String(state.month).padStart(2, '0')}/${state.year}`,
-        body: `O Gabinete do Prefeito publicou a abertura do processo administrativo. O projeto terá tramitação de 1 minuto em conformidade com as regras de compliance e licitação pública. Investimento inicial de R$ ${action.cost.toLocaleString()}.`,
-        impactSummary: `Tramitando no órgão competente. Desfecho em 60 segundos.`,
+        body: `O Gabinete do Prefeito publicou a abertura do processo administrativo. O projeto terá tramitação e execução de ${durationMinutes} minuto${
+          durationMinutes > 1 ? 's' : ''
+        } em conformidade com as regras de licitação pública e volume de investimento de R$ ${action.cost.toLocaleString()}.`,
+        impactSummary: `Tramitando no órgão competente. Desfecho estimado em ${durationMinutes} minuto${
+          durationMinutes > 1 ? 's' : ''
+        }.`,
         timestamp: Date.now(),
       },
       ...state.gazetteFeed.slice(0, 25),
@@ -975,23 +982,38 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
   const fineSeverity = state.trafficFineSeverity || 'padrao';
   const companies = state.publicCompanies;
   const taxRates = state.taxRates || {
+    iptuPobresPercent: 0.2,
+    iptuMediosPercent: 1.2,
+    iptuRicosPercent: 3.5,
     iptuPercent: 1.2,
     issPercent: 3.5,
     itbiPercent: 2.0,
     taxaIluminacaoCip: 18.0,
   };
+
+  const iptuPobresRate = taxRates.iptuPobresPercent ?? 0.2;
+  const iptuMediosRate = taxRates.iptuMediosPercent ?? 1.2;
+  const iptuRicosRate = taxRates.iptuRicosPercent ?? 3.5;
+
   const deptBudgets = state.departmentBudgets || {
     educacao: { budgetMonthly: 60000, focus: 'merenda', effectiveness: 72 },
     saude: { budgetMonthly: 75000, focus: 'upas_24h', effectiveness: 68 },
     segurancaGuarda: { budgetMonthly: 40000, focus: 'patrulhamento_bairros', effectiveness: 65 },
     bombeirosDefesaCivil: { budgetMonthly: 30000, focus: 'prevencao_enchentes', effectiveness: 62 },
+    saneamentoBasico: { budgetMonthly: 35000, focus: 'tratamento_agua', effectiveness: 65 },
+    infraestruturaObras: { budgetMonthly: 40000, focus: 'recapeamento_asfalto', effectiveness: 66 },
+    transporteMobilidade: { budgetMonthly: 30000, focus: 'frota_eletrica', effectiveness: 64 },
     energiaIluminacao: { budgetMonthly: 35000, focus: 'led_100', effectiveness: 70 },
+    meioAmbiente: { budgetMonthly: 20000, focus: 'coleta_seletiva', effectiveness: 60 },
   };
 
   // 1. Receitas Detalhadas
-  // IPTU varia com alíquota definida pelo prefeito e valorização imobiliária
+  // IPTU Progressivo por Classe Social (Pobres, Médios, Ricos)
   const iptuBase = 145000 * (state.population / 48500) * (state.infrastructureIndex / 58);
-  const iptu = Math.round(iptuBase * (taxRates.iptuPercent / 1.2));
+  const iptuPobres = Math.round(iptuBase * 0.20 * (iptuPobresRate / 0.2));
+  const iptuMedios = Math.round(iptuBase * 0.50 * (iptuMediosRate / 1.2));
+  const iptuRicos = Math.round(iptuBase * 0.30 * (iptuRicosRate / 3.5));
+  const iptu = iptuPobres + iptuMedios + iptuRicos;
 
   // ISS varia com alíquota (2% a 5%), atividade econômica e turismo
   const wageBoostToCommerce = Math.max(0, Math.round((minWage - 1412) * 50));
@@ -1042,13 +1064,25 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
   const wageRatio = minWage / 1412;
   const payroll = Math.round(260000 * wageRatio);
 
-  // Gastos diretos com secretarias definidos pelo prefeito
+  // Gastos diretos com todas as secretarias definidos pelo prefeito
   const educacaoMerenda = Math.round(deptBudgets.educacao?.budgetMonthly || 60000);
   const saudeSus = Math.round(deptBudgets.saude?.budgetMonthly || 75000);
   const segurancaGuarda = Math.round(deptBudgets.segurancaGuarda?.budgetMonthly || 40000);
   const bombeirosDefesa = Math.round(deptBudgets.bombeirosDefesaCivil?.budgetMonthly || 30000);
+  const saneamentoGasto = Math.round(deptBudgets.saneamentoBasico?.budgetMonthly || 35000);
+  const obrasGasto = Math.round(deptBudgets.infraestruturaObras?.budgetMonthly || 40000);
+  const transporteGasto = Math.round(deptBudgets.transporteMobilidade?.budgetMonthly || 30000);
   const energiaGasto = Math.round(deptBudgets.energiaIluminacao?.budgetMonthly || 35000);
-  const manutencaoUrbana = Math.round(35000 * (state.infrastructureIndex / 58)) + bombeirosDefesa + energiaGasto;
+  const meioAmbienteGasto = Math.round(deptBudgets.meioAmbiente?.budgetMonthly || 20000);
+
+  const manutencaoUrbana =
+    Math.round(20000 * (state.infrastructureIndex / 58)) +
+    bombeirosDefesa +
+    saneamentoGasto +
+    obrasGasto +
+    transporteGasto +
+    energiaGasto +
+    meioAmbienteGasto;
 
   // Subsídio a empresas públicas deficitárias
   let subsidioEstatais = 0;
@@ -1108,6 +1142,9 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
     departmentBudgets: deptBudgets,
     taxRates,
     revenueBreakdown: {
+      iptuPobres,
+      iptuMedios,
+      iptuRicos,
       iptu,
       iss,
       fpmIcms,
@@ -1122,6 +1159,9 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
       saudeSus,
       educacaoMerenda,
       segurancaGuarda,
+      bombeiros: bombeirosDefesa,
+      saneamento: saneamentoGasto,
+      transporte: transporteGasto,
       manutencaoUrbana,
       subsidioEstatais,
       amortizacaoDivida,
@@ -1533,7 +1573,17 @@ export function toggleAutoFiscalCycle(state: PrefeitoCityState): PrefeitoCitySta
 // ==========================================
 export function setDepartmentBudgetPolicy(
   state: PrefeitoCityState,
-  department: 'educacao' | 'saude' | 'segurancaGuarda' | 'bombeirosDefesaCivil' | 'energiaIluminacao',
+  department:
+    | 'educacao'
+    | 'saude'
+    | 'segurancaGuarda'
+    | 'bombeirosDefesaCivil'
+    | 'saneamentoBasico'
+    | 'infraestruturaObras'
+    | 'transporteMobilidade'
+    | 'energiaIluminacao'
+    | 'meioAmbiente'
+    | string,
   monthlyBudget: number,
   focus: string
 ): { state: PrefeitoCityState; message: string } {
@@ -1561,8 +1611,14 @@ export function setDepartmentBudgetPolicy(
     saude: 'Secretaria de Saúde & SUS',
     segurancaGuarda: 'Secretaria de Segurança & Guarda Municipal',
     bombeirosDefesaCivil: 'Corpo de Bombeiros & Defesa Civil',
-    energiaIluminacao: 'Secretaria de Infraestrutura & Energia/Iluminação',
+    saneamentoBasico: 'Secretaria de Saneamento & Águas',
+    infraestruturaObras: 'Secretaria de Infraestrutura & Obras',
+    transporteMobilidade: 'Secretaria de Transportes & Mobilidade',
+    energiaIluminacao: 'Secretaria de Energia & Iluminação Pública',
+    meioAmbiente: 'Secretaria de Meio Ambiente & Parques',
   };
+
+  const deptTitle = deptNames[department] || `Secretaria de ${department}`;
 
   const updatedState: PrefeitoCityState = {
     ...state,
@@ -1572,7 +1628,7 @@ export function setDepartmentBudgetPolicy(
     gazetteFeed: [
       {
         id: 'gaz_budget_' + Date.now(),
-        title: `Gabinete Ajusta Orçamento da ${deptNames[department]} para R$ ${monthlyBudget.toLocaleString()}/mês`,
+        title: `Gabinete Ajusta Orçamento da ${deptTitle} para R$ ${monthlyBudget.toLocaleString()}/mês`,
         source: 'Diário Oficial',
         type: 'decreto',
         dateStr: `${String(state.month).padStart(2, '0')}/${state.year}`,
@@ -1592,11 +1648,14 @@ export function setDepartmentBudgetPolicy(
 }
 
 // ==========================================
-// CONTROLE DE TRIBUTOS E ALÍQUOTAS (IPTU, ISS, ITBI, CIP)
+// CONTROLE DE TRIBUTOS E ALÍQUOTAS (IPTU POBRES, MÉDIOS, RICOS, ISS, ITBI, CIP)
 // ==========================================
 export function setTaxRatesPolicy(
   state: PrefeitoCityState,
   newTaxRates: {
+    iptuPobresPercent?: number;
+    iptuMediosPercent?: number;
+    iptuRicosPercent?: number;
     iptuPercent: number;
     issPercent: number;
     itbiPercent: number;
@@ -1604,6 +1663,9 @@ export function setTaxRatesPolicy(
   }
 ): { state: PrefeitoCityState; message: string } {
   const currentRates = state.taxRates || {
+    iptuPobresPercent: 0.2,
+    iptuMediosPercent: 1.2,
+    iptuRicosPercent: 3.5,
     iptuPercent: 1.2,
     issPercent: 3.5,
     itbiPercent: 2.0,
@@ -1611,25 +1673,39 @@ export function setTaxRatesPolicy(
   };
 
   let approvalChange = 0;
-  if (newTaxRates.iptuPercent > currentRates.iptuPercent) approvalChange -= 4;
-  else if (newTaxRates.iptuPercent < currentRates.iptuPercent) approvalChange += 5;
-
+  if (newTaxRates.iptuPobresPercent !== undefined && currentRates.iptuPobresPercent !== undefined) {
+    if (newTaxRates.iptuPobresPercent > currentRates.iptuPobresPercent) approvalChange -= 7;
+    else if (newTaxRates.iptuPobresPercent < currentRates.iptuPobresPercent) approvalChange += 8;
+  }
+  if (newTaxRates.iptuRicosPercent !== undefined && currentRates.iptuRicosPercent !== undefined) {
+    if (newTaxRates.iptuRicosPercent > currentRates.iptuRicosPercent) approvalChange += 4;
+    else if (newTaxRates.iptuRicosPercent < currentRates.iptuRicosPercent) approvalChange -= 3;
+  }
+  if (newTaxRates.iptuMediosPercent !== undefined && currentRates.iptuMediosPercent !== undefined) {
+    if (newTaxRates.iptuMediosPercent > currentRates.iptuMediosPercent) approvalChange -= 4;
+    else if (newTaxRates.iptuMediosPercent < currentRates.iptuMediosPercent) approvalChange += 4;
+  }
   if (newTaxRates.issPercent > currentRates.issPercent) approvalChange -= 3;
   else if (newTaxRates.issPercent < currentRates.issPercent) approvalChange += 4;
 
+  const updatedRates = {
+    ...currentRates,
+    ...newTaxRates,
+  };
+
   const updatedState: PrefeitoCityState = {
     ...state,
-    taxRates: newTaxRates,
+    taxRates: updatedRates,
     approvalRating: Math.min(100, Math.max(5, state.approvalRating + approvalChange)),
     gazetteFeed: [
       {
         id: 'gaz_tax_' + Date.now(),
-        title: `Código Tributário: Reforma das Alíquotas Municipais (IPTU ${newTaxRates.iptuPercent}%, ISS ${newTaxRates.issPercent}%)`,
+        title: `Código Tributário: Reforma das Alíquotas Municipais (IPTU Pobres ${updatedRates.iptuPobresPercent ?? 0.2}%, Médios ${updatedRates.iptuMediosPercent ?? 1.2}%, Ricos ${updatedRates.iptuRicosPercent ?? 3.5}%)`,
         source: 'Diário Oficial',
         type: 'decreto',
         dateStr: `${String(state.month).padStart(2, '0')}/${state.year}`,
-        body: `O Executivo Municipal promulgou as novas alíquotas tributárias: IPTU fixado em ${newTaxRates.iptuPercent}%, ISS em ${newTaxRates.issPercent}%, ITBI em ${newTaxRates.itbiPercent}% e CIP Iluminação em R$ ${newTaxRates.taxaIluminacaoCip.toFixed(2)}.`,
-        impactSummary: `Nova calibragem de receitas e competitividade fiscal`,
+        body: `O Executivo Municipal promulgou as novas alíquotas tributárias: IPTU Pobres ${updatedRates.iptuPobresPercent ?? 0.2}%, IPTU Médios ${updatedRates.iptuMediosPercent ?? 1.2}%, IPTU Grandes Mansões ${updatedRates.iptuRicosPercent ?? 3.5}%, ISS ${updatedRates.issPercent}% e Taxa de Iluminação R$ ${updatedRates.taxaIluminacaoCip.toFixed(2)}.`,
+        impactSummary: `Nova calibragem tributária progressiva promulgada pelo Prefeito`,
         timestamp: Date.now(),
       },
       ...state.gazetteFeed.slice(0, 29),
@@ -1639,7 +1715,7 @@ export function setTaxRatesPolicy(
   const finalState = recalculateMunicipalFinances(updatedState);
   return {
     state: finalState,
-    message: `Código tributário municipal atualizado! Receitas recalculadas.`,
+    message: `Código tributário municipal progressivo atualizado! Receitas e impacto popular recalculados.`,
   };
 }
 

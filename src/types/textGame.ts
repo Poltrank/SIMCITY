@@ -198,6 +198,9 @@ export interface PrefeitoCityState {
 
   // Detalhamento Contábil de Arrecadação & Despesas
   revenueBreakdown: {
+    iptuPobres?: number;
+    iptuMedios?: number;
+    iptuRicos?: number;
     iptu: number;
     iss: number;
     fpmIcms: number;
@@ -213,44 +216,70 @@ export interface PrefeitoCityState {
     saudeSus: number;
     educacaoMerenda: number;
     segurancaGuarda: number;
+    bombeiros?: number;
+    saneamento?: number;
+    transporte?: number;
     manutencaoUrbana: number;
     subsidioEstatais: number;
     amortizacaoDivida: number;
     total: number;
   };
 
-  // Orçamentos Específicos das Pastas Municipais (Educação, Saúde, Polícia, Bombeiros, Energia)
+  // Orçamentos Específicos das Secretarias Municipais (Educação, Saúde, Polícia, Bombeiros, Saneamento, Obras, etc.)
   departmentBudgets: {
     educacao: {
       budgetMonthly: number;
-      focus: 'merenda' | 'piso_salarial' | 'reforma_escolas' | 'transporte_rural';
+      focus: 'merenda' | 'piso_salarial' | 'reforma_escolas' | 'transporte_rural' | string;
       effectiveness: number; // 0 to 100
     };
     saude: {
       budgetMonthly: number;
-      focus: 'upas_24h' | 'medicos_especialistas' | 'samu' | 'remedios_gratuitos';
+      focus: 'upas_24h' | 'medicos_especialistas' | 'samu' | 'remedios_gratuitos' | string;
       effectiveness: number;
     };
     segurancaGuarda: {
       budgetMonthly: number;
-      focus: 'armamento' | 'videomonitoramento_ia' | 'patrulhamento_bairros' | 'ronda_escolar';
+      focus: 'armamento' | 'videomonitoramento_ia' | 'patrulhamento_bairros' | 'ronda_escolar' | string;
       effectiveness: number;
     };
     bombeirosDefesaCivil: {
       budgetMonthly: number;
-      focus: 'combate_incendios' | 'prevencao_enchentes' | 'resgate_salvamento' | 'sirenes_alerta';
+      focus: 'combate_incendios' | 'prevencao_enchentes' | 'resgate_salvamento' | 'sirenes_alerta' | string;
+      effectiveness: number;
+    };
+    saneamentoBasico?: {
+      budgetMonthly: number;
+      focus: 'tratamento_agua' | 'esgoto_periferia' | 'aterro_sanitario' | 'drenagem_pluvial' | string;
+      effectiveness: number;
+    };
+    infraestruturaObras?: {
+      budgetMonthly: number;
+      focus: 'recapeamento_asfalto' | 'pontes_viadutos' | 'iluminacao_led' | 'habitacao_popular' | string;
+      effectiveness: number;
+    };
+    transporteMobilidade?: {
+      budgetMonthly: number;
+      focus: 'frota_eletrica' | 'tarifa_social' | 'corredor_onibus' | 'ciclovias' | string;
       effectiveness: number;
     };
     energiaIluminacao: {
       budgetMonthly: number;
-      focus: 'led_100' | 'eficiencia_solar' | 'expansao_periferia' | 'tarifa_social';
+      focus: 'led_100' | 'eficiencia_solar' | 'expansao_periferia' | 'tarifa_social' | string;
+      effectiveness: number;
+    };
+    meioAmbiente?: {
+      budgetMonthly: number;
+      focus: 'coleta_seletiva' | 'arborizacao' | 'parques_municipais' | 'fiscalizacao_poluicao' | string;
       effectiveness: number;
     };
   };
 
-  // Tributos & Alíquotas Municipais (IPTU, ISS, ITBI, Taxa Iluminação)
+  // Tributos & Alíquotas Municipais Progressivas (Pobres, Médios, Ricos, ISS, ITBI, Taxa Iluminação)
   taxRates: {
-    iptuPercent: number; // ex: 1.2%
+    iptuPobresPercent?: number; // ex: 0.2% (baixa renda / isenção social)
+    iptuMediosPercent?: number; // ex: 1.2% (classe média residencial)
+    iptuRicosPercent?: number; // ex: 3.5% (mansões / especulação / grandes terrenos)
+    iptuPercent: number; // alíquota base ou média
     issPercent: number; // ex: 3.5% (mínimo 2%, máximo 5% pela CF/88)
     itbiPercent: number; // ex: 2.0%
     taxaIluminacaoCip: number; // ex: R$ 18.00 por economia
@@ -312,7 +341,8 @@ export interface RegionalMayorProfile {
   id: string;
   name: string;
   cityName: string;
-  role: 'mayor_north' | 'mayor_south';
+  role: 'mayor_north' | 'mayor_south' | string;
+  party?: string;
   color: string;
   population: number;
   treasury: number;
@@ -325,21 +355,29 @@ export interface RegionalMayorProfile {
   energySurplusMw: number;
   fiscalRating: FiscalRating;
   approvalRating: number;
+  isOnline?: boolean;
   lastUpdated: number;
 }
 
 export interface RegionalTreaty {
   id: string;
-  fromMayorRole: 'mayor_north' | 'mayor_south';
+  fromMayorRole: 'mayor_north' | 'mayor_south' | string;
   fromMayorName: string;
-  targetMayorRole: 'mayor_north' | 'mayor_south';
+  targetMayorRole: 'mayor_north' | 'mayor_south' | string;
+  targetMayorName?: string;
+  targetCityName?: string;
   type:
     | 'tourism_corridor' // Corredor de turismo conjunto (+30% turistas para ambas)
     | 'worker_migration' // Intercâmbio de mão-de-obra e empregos industriais
     | 'power_contract' // Venda de energia elétrica em MW
     | 'oil_supply' // Fornecimento de barris de petróleo refinado
     | 'financial_aid' // Pacote de socorro financeiro
-    | 'joint_infrastructure'; // Ponte/ferrovia interestadual
+    | 'joint_infrastructure' // Ponte/ferrovia interestadual
+    | 'health_consortium' // Consórcio metropolitano de saúde e leitos de UTI
+    | 'sanitation_consortium' // Aterro sanitário compartilhado e redução de custo de lixo
+    | 'transit_integration' // Bilhete único metropolitano e linhas conjuntas
+    | 'security_pact' // Muralha digital e patrulha integrada das divisas
+    | 'tax_incentive_hub'; // Polo industrial binacional com incentivos fiscais
   title: string;
   details: string;
   amount: number; // MW, Tourists, Money, etc.
@@ -353,7 +391,8 @@ export interface RegionalTreaty {
 export interface RegionalChatMessage {
   id: string;
   sender: string;
-  role: 'mayor_north' | 'mayor_south' | 'system';
+  role: 'mayor_north' | 'mayor_south' | 'system' | string;
+  targetMayor?: string;
   text: string;
   time: string;
 }
@@ -362,8 +401,9 @@ export interface DirectAidEvent {
   id: string;
   fromMayorName: string;
   fromCityName: string;
-  fromRole: 'mayor_north' | 'mayor_south';
-  targetRole: 'mayor_north' | 'mayor_south';
+  fromRole: 'mayor_north' | 'mayor_south' | string;
+  targetRole: 'mayor_north' | 'mayor_south' | string;
+  targetMayorName?: string;
   amount: number;
   category: 'financeira' | 'energia' | 'agua';
   note?: string;
@@ -376,8 +416,9 @@ export interface NegotiationNotification {
   title: string;
   senderMayor: string;
   senderCity: string;
-  senderRole: 'mayor_north' | 'mayor_south';
-  targetRole?: 'mayor_north' | 'mayor_south';
+  senderRole: 'mayor_north' | 'mayor_south' | string;
+  targetRole?: 'mayor_north' | 'mayor_south' | string;
+  targetMayorName?: string;
   message: string;
   details?: string;
   treatyId?: string;

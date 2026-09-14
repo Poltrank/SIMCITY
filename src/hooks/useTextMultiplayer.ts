@@ -20,6 +20,72 @@ interface UseTextMultiplayerOptions {
   onLoanRejected?: (loanId: string) => void;
 }
 
+export const DEFAULT_NEIGHBORING_MAYORS: Record<string, RegionalMayorProfile> = {
+  may_serra_alta: {
+    id: 'may_serra_alta',
+    name: 'Prefeito Fernando Silveira',
+    cityName: 'Serra Alta',
+    party: 'PROGRESSISTAS',
+    role: 'mayor_north',
+    color: '#3b82f6',
+    population: 185000,
+    treasury: 14200000,
+    jobs: 88000,
+    unemploymentRate: 5.4,
+    touristsPerMonth: 28000,
+    oilProductionBpd: 0,
+    goldProductionKg: 42,
+    energyProductionMw: 620,
+    energySurplusMw: 240,
+    fiscalRating: 'A',
+    approvalRating: 74,
+    isOnline: true,
+    lastUpdated: Date.now(),
+  },
+  may_vale_verde: {
+    id: 'may_vale_verde',
+    name: 'Prefeita Dra. Helena Rios',
+    cityName: 'Vale Verde',
+    party: 'REDE SUSTENTÁVEL',
+    role: 'mayor_south',
+    color: '#10b981',
+    population: 142000,
+    treasury: 8900000,
+    jobs: 62000,
+    unemploymentRate: 6.2,
+    touristsPerMonth: 48000,
+    oilProductionBpd: 0,
+    goldProductionKg: 0,
+    energyProductionMw: 180,
+    energySurplusMw: -20,
+    fiscalRating: 'A',
+    approvalRating: 81,
+    isOnline: true,
+    lastUpdated: Date.now(),
+  },
+  may_porto_real: {
+    id: 'may_porto_real',
+    name: 'Prefeito Carlos Drummond',
+    cityName: 'Porto Real',
+    party: 'UNIÃO METROPOLITANA',
+    role: 'mayor_east',
+    color: '#f59e0b',
+    population: 310000,
+    treasury: 22500000,
+    jobs: 165000,
+    unemploymentRate: 7.1,
+    touristsPerMonth: 34000,
+    oilProductionBpd: 2800,
+    goldProductionKg: 0,
+    energyProductionMw: 320,
+    energySurplusMw: 10,
+    fiscalRating: 'B',
+    approvalRating: 68,
+    isOnline: true,
+    lastUpdated: Date.now(),
+  },
+};
+
 export function useTextMultiplayer(
   cityState: PrefeitoCityState,
   options?: UseTextMultiplayerOptions
@@ -28,7 +94,7 @@ export function useTextMultiplayer(
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [myRole, setMyRole] = useState<'mayor_north' | 'mayor_south' | 'spectator'>('mayor_north');
   const [myPlayerId, setMyPlayerId] = useState<string>('');
-  const [otherMayors, setOtherMayors] = useState<Record<string, RegionalMayorProfile>>({});
+  const [otherMayors, setOtherMayors] = useState<Record<string, RegionalMayorProfile>>(DEFAULT_NEIGHBORING_MAYORS);
   const [treaties, setTreaties] = useState<RegionalTreaty[]>([]);
   const [chatMessages, setChatMessages] = useState<RegionalChatMessage[]>([]);
   const [activeTab, setActiveTab] = useState<'lobby' | 'treaties' | 'chat'>('lobby');
@@ -98,7 +164,10 @@ export function useTextMultiplayer(
               setMyRole(data.room.yourPlayer.role);
             }
             if (data.room.cityProfiles) {
-              setOtherMayors(data.room.cityProfiles);
+              setOtherMayors({
+                ...DEFAULT_NEIGHBORING_MAYORS,
+                ...data.room.cityProfiles,
+              });
             }
             if (data.room.regionalTreaties) {
               setTreaties(data.room.regionalTreaties);
@@ -109,7 +178,11 @@ export function useTextMultiplayer(
           }
 
           if (data.type === 'city_profiles_update') {
-            setOtherMayors(data.cityProfiles || {});
+            setOtherMayors((prev) => ({
+              ...DEFAULT_NEIGHBORING_MAYORS,
+              ...prev,
+              ...(data.cityProfiles || {}),
+            }));
           }
 
           if (data.type === 'player_joined') {
@@ -350,6 +423,51 @@ export function useTextMultiplayer(
     myPlayerId,
   ]);
 
+  // Auto-connect to shared multiplayer region on mount and keep connected
+  useEffect(() => {
+    connectToRoom('BRASIL1');
+    const autoReconn = setInterval(() => {
+      if (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED) {
+        connectToRoom('BRASIL1');
+      }
+    }, 10000);
+    return () => clearInterval(autoReconn);
+  }, [connectToRoom]);
+
+  // Ratification countdown timer for pending treaties (60 seconds)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTreaties((prev) => {
+        let changed = false;
+        const updated = prev.map((t) => {
+          if (t.status === 'pending_ratification') {
+            const nextSec = t.ratificationSecondsRemaining - 1;
+            if (nextSec <= 0) {
+              changed = true;
+              return {
+                ...t,
+                ratificationSecondsRemaining: 0,
+                status: 'active' as const,
+              };
+            }
+            return {
+              ...t,
+              ratificationSecondsRemaining: nextSec,
+            };
+          }
+          return t;
+        });
+
+        if (changed) {
+          sounds.playFanfare();
+        }
+        return updated;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
   // Propose a regional treaty (Takes 60s for cartório ratification!)
   const proposeTreaty = useCallback(
     (treatyDraft: {
@@ -358,29 +476,44 @@ export function useTextMultiplayer(
       details: string;
       amount: number;
       monthlyCostOrPrice: number;
+      targetMayorRole?: string;
+      targetMayorName?: string;
+      targetCityName?: string;
     }) => {
-      if (!wsRef.current || !isConnected) return;
       sounds.playStamp();
+      const now = Date.now();
+      const targetRole = treatyDraft.targetMayorRole || (myRole === 'mayor_north' ? 'mayor_south' : 'mayor_north');
 
-      const targetRole = myRole === 'mayor_north' ? 'mayor_south' : 'mayor_north';
+      const newTreaty: RegionalTreaty = {
+        id: 'treaty_' + now + '_' + Math.random().toString(36).substr(2, 4),
+        fromMayorRole: myRole,
+        fromMayorName: `${cityState.mayorName} (${cityState.cityName})`,
+        targetMayorRole: targetRole,
+        targetMayorName: treatyDraft.targetMayorName || 'Prefeito Vizinho',
+        targetCityName: treatyDraft.targetCityName || 'Município Vizinho',
+        type: treatyDraft.type,
+        title: treatyDraft.title,
+        details: treatyDraft.details,
+        amount: treatyDraft.amount,
+        monthlyCostOrPrice: treatyDraft.monthlyCostOrPrice,
+        status: 'pending_ratification',
+        startTime: now,
+        ratificationSecondsRemaining: 60,
+        timestamp: now,
+      };
 
-      wsRef.current.send(
-        JSON.stringify({
-          type: 'propose_regional_treaty',
-          roomId,
-          playerId: myPlayerId,
-          treaty: {
-            fromMayorRole: myRole,
-            fromMayorName: `${cityState.mayorName} (${cityState.cityName})`,
-            targetMayorRole: targetRole,
-            type: treatyDraft.type,
-            title: treatyDraft.title,
-            details: treatyDraft.details,
-            amount: treatyDraft.amount,
-            monthlyCostOrPrice: treatyDraft.monthlyCostOrPrice,
-          },
-        })
-      );
+      setTreaties((prev) => [newTreaty, ...prev]);
+
+      if (wsRef.current && isConnected) {
+        wsRef.current.send(
+          JSON.stringify({
+            type: 'propose_regional_treaty',
+            roomId,
+            playerId: myPlayerId,
+            treaty: newTreaty,
+          })
+        );
+      }
     },
     [isConnected, myRole, cityState, roomId, myPlayerId]
   );

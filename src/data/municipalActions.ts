@@ -1,6 +1,31 @@
 import { MunicipalActionDef } from '../types/textGame';
 
-export const MUNICIPAL_ACTIONS: MunicipalActionDef[] = [
+/**
+ * Escalonamento de Duração por Custo:
+ * Construções e projetos mais caros levam mais minutos para tramitar e concluir,
+ * enquanto coisas mais baratas são rápidas e fáceis.
+ */
+export function getActionDurationMs(cost: number): number {
+  if (cost <= 40000) return 60 * 1000; // 1 minuto (ações baratas e rápidas: decretos, feiras, mutirão)
+  if (cost <= 120000) return 2 * 60 * 1000; // 2 minutos (iluminação, viaturas, pequenas reformas)
+  if (cost <= 350000) return 3 * 60 * 1000; // 3 minutos (sondagem de ouro, postos de saúde, asfalto)
+  if (cost <= 800000) return 4 * 60 * 1000; // 4 minutos (usina solar, UPAs, polo tecnológico)
+  if (cost <= 1500000) return 6 * 60 * 1000; // 6 minutos (poço petróleo onshore, parque eólico, hospital)
+  if (cost <= 3000000) return 8 * 60 * 1000; // 8 minutos (pré-sal offshore, porto marítimo, ferrovia)
+  return 10 * 60 * 1000; // 10 minutos (megaobras de grande porte)
+}
+
+export function formatActionDuration(durationMs: number): string {
+  const totalSeconds = Math.round(durationMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (seconds === 0) {
+    return `${minutes} minuto${minutes > 1 ? 's' : ''}`;
+  }
+  return `${minutes}m ${seconds}s`;
+}
+
+const RAW_MUNICIPAL_ACTIONS: MunicipalActionDef[] = [
   // ==========================================
   // 1. RECURSOS NATURAIS, ENERGIA & MINERAÇÃO
   // ==========================================
@@ -632,3 +657,22 @@ export const MUNICIPAL_ACTIONS: MunicipalActionDef[] = [
     riskFactor: 'Baixo',
   },
 ];
+
+export const MUNICIPAL_ACTIONS: MunicipalActionDef[] = RAW_MUNICIPAL_ACTIONS.map((action) => {
+  const durationMs = getActionDurationMs(action.cost);
+  const totalSec = Math.round(durationMs / 1000);
+  // Escalonar os segundos de cada fase burocrática proporcionalmente ao tempo total da obra
+  const phases = action.bureaucracyPhases.map((phase, idx, arr) => {
+    const fraction = idx / arr.length;
+    return {
+      ...phase,
+      second: Math.round(fraction * totalSec),
+    };
+  });
+
+  return {
+    ...action,
+    durationMs,
+    bureaucracyPhases: phases,
+  };
+});

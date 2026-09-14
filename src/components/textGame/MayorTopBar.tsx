@@ -25,14 +25,15 @@ import {
   PlusCircle,
   LogIn,
   User,
+  Handshake,
 } from 'lucide-react';
 import { PrefeitoCityState } from '../../types/textGame';
 import { sounds } from '../../audio/soundManager';
 
 interface MayorTopBarProps {
   state: PrefeitoCityState;
-  activeView: 'mesa' | 'secretarias' | 'politicas' | 'gazeta' | 'financas' | 'regional' | 'ranking';
-  setActiveView: (view: 'mesa' | 'secretarias' | 'politicas' | 'gazeta' | 'financas' | 'regional' | 'ranking') => void;
+  activeView: 'mesa' | 'secretarias' | 'politicas' | 'gazeta' | 'financas' | 'regional' | 'ranking' | 'negociar';
+  setActiveView: (view: 'mesa' | 'secretarias' | 'politicas' | 'gazeta' | 'financas' | 'regional' | 'ranking' | 'negociar') => void;
   isMuted: boolean;
   toggleMute: () => void;
   isMultiplayerConnected: boolean;
@@ -130,7 +131,7 @@ export const MayorTopBar: React.FC<MayorTopBarProps> = ({
             <span className="font-semibold text-slate-200">
               {state.monthName} / {state.year}
             </span>
-            <span className="text-[11px] text-slate-400 block">Mês {state.termMonth} de 48 do Mandato</span>
+            <span className="text-[11px] text-amber-400/90 font-medium block">Mês {state.termMonth} • Mandato Contínuo</span>
           </div>
         </div>
 
@@ -391,6 +392,21 @@ export const MayorTopBar: React.FC<MayorTopBarProps> = ({
           >
             <Trophy className="w-4 h-4" />
             Ranking & Painel Econômico
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveView('negociar');
+              sounds.playClick();
+            }}
+            className={`px-3 py-2 rounded-md text-xs md:text-sm font-semibold flex items-center gap-2 transition-all whitespace-nowrap ${
+              activeView === 'negociar'
+                ? 'bg-amber-500 text-slate-950 shadow-md font-black ring-2 ring-amber-300'
+                : 'text-amber-300 bg-amber-950/50 hover:bg-amber-900/70 border border-amber-500/60 shadow-sm'
+            }`}
+          >
+            <Handshake className="w-4 h-4 text-amber-400" />
+            🤝 Negociar com Prefeitos
           </button>
 
           <button

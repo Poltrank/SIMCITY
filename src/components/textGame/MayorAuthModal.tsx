@@ -870,8 +870,8 @@ export const MayorAuthModal: React.FC<MayorAuthModalProps> = ({
                   </div>
                   <div className="text-right">
                     <span className="text-xs font-bold text-slate-300 block">{currentState.cityName}</span>
-                    <span className="text-[11px] text-slate-500">
-                      Mês {currentState.termMonth} de 48 do Mandato
+                    <span className="text-[11px] text-amber-400 font-medium">
+                      Mês {currentState.termMonth} • Mandato Contínuo
                     </span>
                   </div>
                 </div>
