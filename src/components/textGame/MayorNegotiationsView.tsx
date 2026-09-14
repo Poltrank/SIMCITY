@@ -37,6 +37,7 @@ interface MayorNegotiationsViewProps {
   treaties: RegionalTreaty[];
   chatMessages: RegionalChatMessage[];
   myRole: string;
+  myPlayerId?: string;
   isConnected: boolean;
   roomId: string;
   onProposeTreaty: (draft: {
@@ -61,6 +62,7 @@ export const MayorNegotiationsView: React.FC<MayorNegotiationsViewProps> = ({
   treaties,
   chatMessages,
   myRole,
+  myPlayerId,
   isConnected,
   roomId,
   onProposeTreaty,
@@ -70,7 +72,10 @@ export const MayorNegotiationsView: React.FC<MayorNegotiationsViewProps> = ({
   onOpenLoansModal,
 }) => {
   const rawList = (Object.values(otherMayors) as RegionalMayorProfile[]).filter(
-    (m: RegionalMayorProfile) => m.name !== cityState.mayorName && m.cityName !== cityState.cityName
+    (m: RegionalMayorProfile) => {
+      if (myPlayerId && m.id) return m.id !== myPlayerId;
+      return m.name !== cityState.mayorName || m.cityName !== cityState.cityName;
+    }
   );
   // Sort so real players (e.g. girlfriend / partner) appear first!
   const mayorsList: RegionalMayorProfile[] = [...rawList].sort((a: RegionalMayorProfile, b: RegionalMayorProfile) => {

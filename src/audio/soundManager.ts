@@ -329,6 +329,10 @@ class SoundManager {
     } catch {}
   }
 
+  public playCelebration() {
+    this.playFanfare();
+  }
+
   public playFanfare() {
     const ctx = this.getContext();
     if (!ctx) return;

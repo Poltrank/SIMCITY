@@ -86,6 +86,45 @@ export const DEFAULT_NEIGHBORING_MAYORS: Record<string, RegionalMayorProfile> = 
   },
 };
 
+/**
+ * Merges new profiles into existing ones, ensuring real players always appear FIRST
+ * and are never overwritten by static bot defaults.
+ */
+export function mergeMayorsWithRealFirst(
+  existingProfiles: Record<string, RegionalMayorProfile>,
+  newProfiles: Record<string, any>
+): Record<string, RegionalMayorProfile> {
+  const merged: Record<string, RegionalMayorProfile> = {};
+
+  // 1. First add real players (from newProfiles then existingProfiles)
+  Object.entries(newProfiles || {}).forEach(([id, prof]) => {
+    if (prof && prof.isRealPlayer) {
+      merged[id] = prof;
+    }
+  });
+  Object.entries(existingProfiles || {}).forEach(([id, prof]) => {
+    if (prof && prof.isRealPlayer && !merged[id]) {
+      merged[id] = prof;
+    }
+  });
+
+  // 2. Then default neighboring mayors (bots)
+  Object.entries(DEFAULT_NEIGHBORING_MAYORS).forEach(([id, prof]) => {
+    if (!merged[id]) {
+      merged[id] = prof;
+    }
+  });
+
+  // 3. Any other profiles from server
+  Object.entries(newProfiles || {}).forEach(([id, prof]) => {
+    if (prof && !merged[id]) {
+      merged[id] = prof;
+    }
+  });
+
+  return merged;
+}
+
 export function useTextMultiplayer(
   cityState: PrefeitoCityState,
   options?: UseTextMultiplayerOptions
@@ -129,6 +168,12 @@ export function useTextMultiplayer(
   const activeRoomRef = useRef<string>(roomId);
   activeRoomRef.current = roomId;
 
+  const cityStateRef = useRef<PrefeitoCityState>(cityState);
+  cityStateRef.current = cityState;
+
+  // Track previous partner ID to celebrate when partner connects
+  const prevPartnerIdRef = useRef<string | null>(null);
+
   // Helper to build city profile payload
   const buildProfilePayload = useCallback((state: PrefeitoCityState, role: string, pid: string): RegionalMayorProfile => {
     return {
@@ -155,20 +200,36 @@ export function useTextMultiplayer(
     };
   }, []);
 
-  // HTTP Polling fallback - Guarantees synchronization even on mobile/proxy where WebSocket may fail
-  const pollRoomHttp = useCallback(async (targetRoom: string, pid: string) => {
+  // Universal Heartbeat + Sync: Sends fresh profile and gets room state in 1 roundtrip
+  const sendHeartbeatHttp = useCallback(async (targetRoom: string, pid: string) => {
     try {
-      const res = await fetch(`/api/multiplayer/room/${encodeURIComponent(targetRoom)}?playerId=${encodeURIComponent(pid)}`);
+      const currentProfile = buildProfilePayload(cityStateRef.current, myRole, pid);
+      const res = await fetch('/api/multiplayer/heartbeat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomId: targetRoom,
+          playerId: pid,
+          profile: currentProfile,
+        }),
+      });
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.room) {
           setIsConnected(true);
           if (data.room.cityProfiles) {
-            setOtherMayors((prev) => ({
-              ...DEFAULT_NEIGHBORING_MAYORS,
-              ...prev,
-              ...data.room.cityProfiles,
-            }));
+            setOtherMayors((prev) => {
+              const merged = mergeMayorsWithRealFirst(prev, data.room.cityProfiles);
+              // Check if partner newly joined
+              const partners = Object.values(merged).filter((m) => m.id !== pid && m.isRealPlayer);
+              if (partners.length > 0 && prevPartnerIdRef.current !== partners[0].id) {
+                prevPartnerIdRef.current = partners[0].id;
+                try {
+                  sounds.playCelebration();
+                } catch (e) {}
+              }
+              return merged;
+            });
           }
           if (data.room.regionalTreaties) {
             setTreaties(data.room.regionalTreaties);
@@ -179,9 +240,21 @@ export function useTextMultiplayer(
         }
       }
     } catch (e) {
-      // Background poll silently continues
+      // Fallback to GET polling if POST network fails
+      try {
+        const res = await fetch(`/api/multiplayer/room/${encodeURIComponent(targetRoom)}?playerId=${encodeURIComponent(pid)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.room) {
+            setIsConnected(true);
+            if (data.room.cityProfiles) {
+              setOtherMayors((prev) => mergeMayorsWithRealFirst(prev, data.room.cityProfiles));
+            }
+          }
+        }
+      } catch (err) {}
     }
-  }, []);
+  }, [buildProfilePayload, myRole]);
 
   // HTTP Join - Establishes presence on the server immediately
   const joinRoomHttp = useCallback(async (cleanRoom: string, pid: string, state: PrefeitoCityState) => {
@@ -207,11 +280,7 @@ export function useTextMultiplayer(
             setMyRole(data.yourPlayer.role);
           }
           if (data.room.cityProfiles) {
-            setOtherMayors((prev) => ({
-              ...DEFAULT_NEIGHBORING_MAYORS,
-              ...prev,
-              ...data.room.cityProfiles,
-            }));
+            setOtherMayors((prev) => mergeMayorsWithRealFirst(prev, data.room.cityProfiles));
           }
           if (data.room.regionalTreaties) {
             setTreaties(data.room.regionalTreaties);
@@ -295,10 +364,7 @@ export function useTextMultiplayer(
               setMyRole(data.room.yourPlayer.role);
             }
             if (data.room.cityProfiles) {
-              setOtherMayors({
-                ...DEFAULT_NEIGHBORING_MAYORS,
-                ...data.room.cityProfiles,
-              });
+              setOtherMayors((prev) => mergeMayorsWithRealFirst(prev, data.room.cityProfiles));
             }
             if (data.room.regionalTreaties) {
               setTreaties(data.room.regionalTreaties);
@@ -309,16 +375,33 @@ export function useTextMultiplayer(
           }
 
           if (data.type === 'city_profiles_update') {
-            setOtherMayors((prev) => ({
-              ...DEFAULT_NEIGHBORING_MAYORS,
-              ...prev,
-              ...(data.cityProfiles || {}),
-            }));
+            if (data.cityProfiles) {
+              setOtherMayors((prev) => mergeMayorsWithRealFirst(prev, data.cityProfiles));
+            }
           }
 
           if (data.type === 'player_joined') {
             if (data.chatMessage) {
               setChatMessages((prev) => [...prev, data.chatMessage]);
+            }
+            if (data.cityProfiles) {
+              setOtherMayors((prev) => mergeMayorsWithRealFirst(prev, data.cityProfiles));
+            }
+            if (data.player && data.player.id !== myPlayerId) {
+              sounds.playSuccess();
+              const joinNotif: NegotiationNotification = {
+                id: 'join_' + Date.now(),
+                type: 'aid_received',
+                title: '🎉 Prefeita(o) Conectada(o)!',
+                senderMayor: data.player.name,
+                senderCity: data.player.cityName,
+                senderRole: data.player.role,
+                message: `${data.player.name} conectou a cidade ${data.player.cityName} na sua Região! Vocês já podem negociar tratados, trocar energia e prestar socorro mútuo!`,
+                timestamp: Date.now(),
+                read: false,
+              };
+              setActiveAlertNotification(joinNotif);
+              setNotifications((prev) => [joinNotif, ...prev]);
             }
           }
 
@@ -565,13 +648,19 @@ export function useTextMultiplayer(
       syncCityProfileHttp(activeRoomRef.current, myPlayerId, cityState);
     }
   }, [
+    cityState.mayorName,
+    cityState.cityName,
+    cityState.party,
     cityState.population,
     cityState.treasury,
+    cityState.jobs,
+    cityState.unemploymentRate,
     cityState.oilProductionBpd,
     cityState.goldProductionKg,
     cityState.energySurplusMw,
     cityState.touristsPerMonth,
     cityState.approvalRating,
+    cityState.fiscalRating,
     isConnected,
     myPlayerId,
     syncCityProfileHttp,
@@ -581,18 +670,18 @@ export function useTextMultiplayer(
   useEffect(() => {
     connectToRoom(activeRoomRef.current);
 
-    // Fast polling fallback: keeps players in sync even if WebSocket is disconnected or throttled on mobile
+    // Fast heartbeat & sync: sends city state and gets other players every 2 seconds
     const pollInterval = setInterval(() => {
-      pollRoomHttp(activeRoomRef.current, myPlayerId);
+      sendHeartbeatHttp(activeRoomRef.current, myPlayerId);
 
       // If WebSocket died, attempt reconnection to current room
       if (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED) {
         connectToRoom(activeRoomRef.current);
       }
-    }, 2500);
+    }, 2000);
 
     return () => clearInterval(pollInterval);
-  }, [connectToRoom, pollRoomHttp, myPlayerId]);
+  }, [connectToRoom, sendHeartbeatHttp, myPlayerId]);
 
   // Ratification countdown timer for pending treaties (60 seconds)
   useEffect(() => {

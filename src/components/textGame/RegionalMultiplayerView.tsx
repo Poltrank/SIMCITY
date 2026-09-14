@@ -32,6 +32,7 @@ interface RegionalMultiplayerViewProps {
   roomId: string;
   isConnected: boolean;
   myRole: 'mayor_north' | 'mayor_south' | 'spectator';
+  myPlayerId?: string;
   otherMayors: Record<string, RegionalMayorProfile>;
   treaties: RegionalTreaty[];
   chatMessages: RegionalChatMessage[];
@@ -42,10 +43,15 @@ interface RegionalMultiplayerViewProps {
     details: string;
     amount: number;
     monthlyCostOrPrice: number;
+    targetMayorRole?: string;
+    targetMayorName?: string;
+    targetCityName?: string;
   }) => void;
   onRespondTreaty: (treatyId: string, accept: boolean) => void;
   onSendMessage: (text: string) => void;
   onShareRoom?: () => void;
+  onSendDirectAid?: (amount: number, category: 'financeira' | 'energia' | 'agua', note?: string) => void;
+  onOpenLoansModal?: () => void;
 }
 
 export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = ({
@@ -53,6 +59,7 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
   roomId,
   isConnected,
   myRole,
+  myPlayerId,
   otherMayors,
   treaties,
   chatMessages,
@@ -61,19 +68,36 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
   onRespondTreaty,
   onSendMessage,
   onShareRoom,
+  onSendDirectAid,
+  onOpenLoansModal,
 }) => {
   const [inputRoom, setInputRoom] = useState(roomId);
   const [chatInput, setChatInput] = useState('');
   const [activeTab, setActiveTab] = useState<'cenario' | 'tratados' | 'chat'>('cenario');
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const [aidFeedback, setAidFeedback] = useState<string | null>(null);
 
-  // Filter out self to find neighboring mayor - PRIORITIZE REAL PLAYERS (girlfriend / partner)
+  // Filter out self
   const allMayors = Object.values(otherMayors) as RegionalMayorProfile[];
-  const realPartner = allMayors.find(
-    (m) => m.isRealPlayer && m.name !== cityState.mayorName && m.cityName !== cityState.cityName
+  const isOther = (m: RegionalMayorProfile) => {
+    if (myPlayerId && m.id) return m.id !== myPlayerId;
+    return m.name !== cityState.mayorName || m.cityName !== cityState.cityName;
+  };
+
+  const realPartners = allMayors.filter((m) => m.isRealPlayer && isOther(m));
+  const realPartner: RegionalMayorProfile | null = realPartners[0] || null;
+  const fictitiousMayors = allMayors.filter((m) => !m.isRealPlayer);
+
+  // Target mayor selection for treaties tab
+  const [selectedTargetMayorId, setSelectedTargetMayorId] = useState<string>(
+    realPartner ? realPartner.id : 'may_serra_alta'
   );
-  const neighbors = allMayors.filter((m) => m.name !== cityState.mayorName && m.cityName !== cityState.cityName);
-  const neighbor: RegionalMayorProfile | null = realPartner || neighbors[0] || null;
+
+  React.useEffect(() => {
+    if (realPartner && selectedTargetMayorId.startsWith('may_')) {
+      setSelectedTargetMayorId(realPartner.id);
+    }
+  }, [realPartner, selectedTargetMayorId]);
 
   const handleCopyLink = () => {
     sounds.playClick();
@@ -88,12 +112,27 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
     setTimeout(() => setCopyFeedback(null), 5000);
   };
 
+  const handleSendAidToPartner = (amount: number) => {
+    if (!realPartner) return;
+    if (cityState.treasury < amount) {
+      setAidFeedback(`Tesouro insuficiente. Você possui R$ ${cityState.treasury.toLocaleString()}.`);
+      setTimeout(() => setAidFeedback(null), 4000);
+      return;
+    }
+    sounds.playCash();
+    onSendDirectAid?.(amount, 'financeira', `Ajuda emergencial para a Prefeitura de ${realPartner.cityName}`);
+    setAidFeedback(`R$ ${amount.toLocaleString()} transferidos com sucesso para o Tesouro de ${realPartner.name} (${realPartner.cityName})!`);
+    setTimeout(() => setAidFeedback(null), 5000);
+  };
+
   const handleSendChat = (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatInput.trim()) return;
     onSendMessage(chatInput);
     setChatInput('');
   };
+
+  const selectedTargetProfile = allMayors.find((m) => m.id === selectedTargetMayorId) || realPartner || fictitiousMayors[0];
 
   return (
     <div className="space-y-6">
@@ -167,6 +206,14 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
         </div>
       )}
 
+      {/* Banner de Ajuda Financeira Enviada */}
+      {aidFeedback && (
+        <div className="p-3 bg-emerald-950 border border-emerald-500 text-emerald-200 text-xs font-bold rounded-lg shadow-lg flex items-center gap-2 animate-bounce">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+          <span>{aidFeedback}</span>
+        </div>
+      )}
+
       {/* Sub-navegação do Multiplayer */}
       <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
         <button
@@ -174,14 +221,14 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
             sounds.playClick();
             setActiveTab('cenario');
           }}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors ${
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors ${
             activeTab === 'cenario'
-              ? 'bg-sky-500 text-slate-950'
+              ? 'bg-sky-500 text-slate-950 shadow-md'
               : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
           }`}
         >
           <Building className="w-4 h-4" />
-          Cidades & Comparativo Regional
+          Cidades & Consórcio Regional
         </button>
 
         <button
@@ -189,9 +236,9 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
             sounds.playClick();
             setActiveTab('tratados');
           }}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors ${
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors ${
             activeTab === 'tratados'
-              ? 'bg-sky-500 text-slate-950'
+              ? 'bg-sky-500 text-slate-950 shadow-md'
               : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
           }`}
         >
@@ -204,9 +251,9 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
             sounds.playClick();
             setActiveTab('chat');
           }}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors ${
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors ${
             activeTab === 'chat'
-              ? 'bg-sky-500 text-slate-950'
+              ? 'bg-sky-500 text-slate-950 shadow-md'
               : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
           }`}
         >
@@ -215,31 +262,35 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
         </button>
       </div>
 
-      {/* ABA 1: COMPARATIVO DAS DUAS CIDADES */}
+      {/* ABA 1: TODAS AS CIDADES NO CONSÓRCIO REGIONAL */}
       {activeTab === 'cenario' && (
         <div className="space-y-6">
+          {/* 1. DUELO / PARCERIA DE JOGADORES REAIS */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Cidade do Jogador Atual */}
-            <div className="bg-slate-900 border-2 border-sky-500/40 rounded-xl p-5 shadow-md">
+            {/* Sua Cidade (Você) */}
+            <div className="bg-slate-900 border-2 border-sky-500/50 rounded-xl p-5 shadow-lg relative overflow-hidden">
               <div className="flex items-center justify-between mb-3 border-b border-slate-800 pb-3">
                 <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-sky-400 block">
-                    Sua Administração Municipal
+                  <span className="text-[10px] font-black uppercase tracking-wider text-sky-400 flex items-center gap-1.5">
+                    👑 Sua Administração Municipal
                   </span>
-                  <h3 className="text-lg font-black text-white">{cityState.cityName}</h3>
-                  <span className="text-xs text-slate-400">
+                  <h3 className="text-xl font-black text-white">{cityState.cityName}</h3>
+                  <span className="text-xs text-slate-300">
                     {cityState.mayorName} ({cityState.party})
                   </span>
                 </div>
                 <div className="text-right">
-                  <span className="text-xs px-2 py-0.5 rounded font-bold bg-sky-950 text-sky-300 border border-sky-600/40">
-                    {myRole === 'mayor_north' ? 'Distrito Norte' : 'Distrito Sul'}
+                  <span className="text-xs px-2.5 py-1 rounded font-bold bg-sky-950 text-sky-300 border border-sky-600/40">
+                    🟢 Você está Online
+                  </span>
+                  <span className="block text-[10px] text-slate-400 mt-1 font-mono">
+                    CAPAG {cityState.fiscalRating} | {cityState.approvalRating}% Aprov.
                   </span>
                 </div>
               </div>
 
               {/* Estatísticas Chave */}
-              <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
                 <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
                   <span className="text-slate-400 block text-[10px] uppercase">População</span>
                   <strong className="text-sm text-slate-100 font-bold">
@@ -248,16 +299,16 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
                 </div>
 
                 <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                  <span className="text-slate-400 block text-[10px] uppercase">Vagas de Emprego</span>
+                  <span className="text-slate-400 block text-[10px] uppercase">Empregos & Desemprego</span>
                   <strong className="text-sm text-amber-300 font-bold">
-                    {cityState.jobs.toLocaleString()} vagas ({cityState.unemploymentRate}% desemprego)
+                    {cityState.jobs.toLocaleString()} ({cityState.unemploymentRate}%)
                   </strong>
                 </div>
 
                 <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
                   <span className="text-slate-400 block text-[10px] uppercase">Turistas por Mês</span>
                   <strong className="text-sm text-emerald-300 font-bold">
-                    {cityState.touristsPerMonth.toLocaleString()} visitantes
+                    {cityState.touristsPerMonth.toLocaleString()}
                   </strong>
                 </div>
 
@@ -270,96 +321,246 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
 
                 <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
                   <span className="text-slate-400 block text-[10px] uppercase">Energia Excedente</span>
-                  <strong className="text-sm text-sky-400 font-bold">
-                    +{cityState.energySurplusMw} MW disponíveis
+                  <strong className={`text-sm font-bold ${cityState.energySurplusMw >= 0 ? 'text-sky-400' : 'text-rose-400'}`}>
+                    {cityState.energySurplusMw >= 0 ? `+${cityState.energySurplusMw}` : cityState.energySurplusMw} MW
                   </strong>
                 </div>
 
                 <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
                   <span className="text-slate-400 block text-[10px] uppercase">Petróleo & Ouro</span>
                   <strong className="text-sm text-amber-400 font-bold">
-                    {cityState.oilProductionBpd} bpd | {cityState.goldProductionKg} kg ouro
+                    {cityState.oilProductionBpd} bpd | {cityState.goldProductionKg} kg
                   </strong>
                 </div>
               </div>
             </div>
 
-            {/* Cidade Vizinha (Segundo Jogador) */}
-            <div className="bg-slate-900 border-2 border-emerald-500/30 rounded-xl p-5 shadow-md">
-              <div className="flex items-center justify-between mb-3 border-b border-slate-800 pb-3">
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block">
-                    Prefeitura Vizinha Conectada
-                  </span>
-                  <h3 className="text-lg font-black text-white">
-                    {neighbor ? neighbor.cityName : 'Aguardando Segundo Prefeito...'}
-                  </h3>
-                  <span className="text-xs text-slate-400">
-                    {neighbor ? neighbor.name : `Abra outro navegador no código ${roomId}`}
-                  </span>
+            {/* Cidade da Namorada / Jogador Real */}
+            {realPartner ? (
+              <div className="bg-slate-900 border-2 border-emerald-500 rounded-xl p-5 shadow-[0_0_20px_rgba(16,185,129,0.2)] relative overflow-hidden">
+                <div className="flex items-center justify-between mb-3 border-b border-slate-800 pb-3">
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                      🟢 Jogador(a) Real Conectado(a)
+                    </span>
+                    <h3 className="text-xl font-black text-white">{realPartner.cityName}</h3>
+                    <span className="text-xs text-slate-300">
+                      {realPartner.name} ({realPartner.party || 'SEM PARTIDO'})
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs px-2.5 py-1 rounded font-black bg-emerald-950 text-emerald-300 border border-emerald-500 shadow-sm animate-pulse">
+                      Ao Vivo na Sala {roomId}
+                    </span>
+                    <span className="block text-[10px] text-slate-400 mt-1 font-mono">
+                      CAPAG {realPartner.fiscalRating || 'A'} | {realPartner.approvalRating || 65}% Aprov.
+                    </span>
+                  </div>
                 </div>
-                {neighbor && (
-                  <span className="text-xs px-2 py-0.5 rounded font-bold bg-emerald-950 text-emerald-300 border border-emerald-600/40">
-                    Conectado
-                  </span>
-                )}
-              </div>
 
-              {neighbor ? (
-                <div className="grid grid-cols-2 gap-3 text-xs">
+                {/* Estatísticas da Namorada */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs mb-4">
                   <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
                     <span className="text-slate-400 block text-[10px] uppercase">População</span>
                     <strong className="text-sm text-slate-100 font-bold">
-                      {neighbor.population.toLocaleString()} hab.
+                      {realPartner.population.toLocaleString()} hab.
                     </strong>
                   </div>
 
                   <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                    <span className="text-slate-400 block text-[10px] uppercase">Empregos & Vagas</span>
+                    <span className="text-slate-400 block text-[10px] uppercase">Empregos & Desemprego</span>
                     <strong className="text-sm text-amber-300 font-bold">
-                      {neighbor.jobs.toLocaleString()} ({neighbor.unemploymentRate}% desemprego)
+                      {realPartner.jobs.toLocaleString()} ({realPartner.unemploymentRate}%)
                     </strong>
                   </div>
 
                   <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
                     <span className="text-slate-400 block text-[10px] uppercase">Turistas por Mês</span>
                     <strong className="text-sm text-emerald-300 font-bold">
-                      {neighbor.touristsPerMonth.toLocaleString()} visitantes
+                      {realPartner.touristsPerMonth.toLocaleString()}
                     </strong>
                   </div>
 
                   <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
                     <span className="text-slate-400 block text-[10px] uppercase">Tesouro em Caixa</span>
                     <strong className="text-sm text-emerald-400 font-bold">
-                      R$ {neighbor.treasury.toLocaleString()}
+                      R$ {realPartner.treasury.toLocaleString()}
                     </strong>
                   </div>
 
                   <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
                     <span className="text-slate-400 block text-[10px] uppercase">Energia Excedente</span>
-                    <strong className="text-sm text-sky-400 font-bold">
-                      +{neighbor.energySurplusMw} MW disponíveis
+                    <strong className={`text-sm font-bold ${realPartner.energySurplusMw >= 0 ? 'text-sky-400' : 'text-rose-400'}`}>
+                      {realPartner.energySurplusMw >= 0 ? `+${realPartner.energySurplusMw}` : realPartner.energySurplusMw} MW
                     </strong>
                   </div>
 
                   <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
                     <span className="text-slate-400 block text-[10px] uppercase">Petróleo & Ouro</span>
                     <strong className="text-sm text-amber-400 font-bold">
-                      {neighbor.oilProductionBpd} bpd | {neighbor.goldProductionKg} kg ouro
+                      {realPartner.oilProductionBpd} bpd | {realPartner.goldProductionKg} kg
                     </strong>
                   </div>
                 </div>
-              ) : (
-                <div className="p-8 text-center text-slate-400 border border-dashed border-slate-800 rounded-xl">
-                  <Users className="w-8 h-8 mx-auto mb-2 text-slate-500" />
-                  <h4 className="text-sm font-bold text-slate-300">Sala Pronta para Conexão</h4>
-                  <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                    Para jogar com um amigo em tempo real, compartilhe o código{' '}
-                    <strong className="text-sky-300">{roomId}</strong>. Ambos poderão governar suas cidades e
-                    negociar turistas, vagas de emprego e matriz de energia!
-                  </p>
+
+                {/* Ações Diretas com a Namorada */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-800">
+                  <button
+                    onClick={() => {
+                      sounds.playClick();
+                      setSelectedTargetMayorId(realPartner.id);
+                      setActiveTab('tratados');
+                    }}
+                    className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg transition-all shadow-sm flex items-center justify-center gap-1"
+                  >
+                    <Handshake className="w-3.5 h-3.5" />
+                    Propor Tratado
+                  </button>
+
+                  <button
+                    onClick={() => handleSendAidToPartner(50000)}
+                    className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold text-xs rounded-lg transition-all shadow-sm flex items-center justify-center gap-1"
+                    title="Transferir R$ 50.000 do seu tesouro para a cidade dela"
+                  >
+                    <DollarSign className="w-3.5 h-3.5" />
+                    Enviar R$ 50k
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      sounds.playClick();
+                      onOpenLoansModal?.();
+                    }}
+                    className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-lg transition-all shadow-sm flex items-center justify-center gap-1"
+                  >
+                    <Building className="w-3.5 h-3.5" />
+                    Empréstimo
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      sounds.playClick();
+                      setActiveTab('chat');
+                    }}
+                    className="px-2.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-lg transition-all shadow-sm flex items-center justify-center gap-1"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    Abrir Chat
+                  </button>
                 </div>
-              )}
+              </div>
+            ) : (
+              <div className="bg-slate-900 border-2 border-dashed border-slate-800 rounded-xl p-6 flex flex-col items-center justify-center text-center shadow-md">
+                <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-sky-400 mb-3">
+                  <Users className="w-6 h-6 animate-pulse" />
+                </div>
+                <h4 className="text-base font-bold text-white mb-1">
+                  Aguardando Segundo Prefeito(a) (Namorada / Amigo)
+                </h4>
+                <p className="text-xs text-slate-300 max-w-md mb-4 leading-relaxed">
+                  O mundo regional já está rodando com você e as 3 cidades fictícias abaixo. Assim que sua namorada
+                  abrir o jogo no celular dela na sala <strong className="text-sky-300">{roomId}</strong>, a prefeitura dela
+                  aparecerá aqui automaticamente em tempo real!
+                </p>
+                <button
+                  onClick={handleCopyLink}
+                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl shadow-lg flex items-center gap-2 transition-transform hover:scale-105"
+                >
+                  <Share2 className="w-4 h-4" />
+                  Copiar Link Direto para o Celular Dela
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 2. CONSÓRCIO METROPOLITANO: AS 3 CIDADES FICTÍCIAS VIZINHAS */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 border-b border-slate-800 pb-3">
+              <div>
+                <div className="flex items-center gap-2 text-amber-400 text-xs font-bold uppercase tracking-wider">
+                  <Building className="w-4 h-4" />
+                  Prefeituras Fictícias Autônomas da Região
+                </div>
+                <h3 className="text-base font-black text-white">
+                  Consórcio de Cidades Vizinhas (Disponíveis para Todos os Jogadores)
+                </h3>
+              </div>
+              <span className="text-xs text-slate-400">
+                3 Municípios Vizinhos Ativos no Mundo do Jogo
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {fictitiousMayors.map((fMayor) => {
+                const isEnergySpecialist = fMayor.energySurplusMw > 50;
+                const isTourismSpecialist = fMayor.touristsPerMonth > 35000;
+                const isOilSpecialist = fMayor.oilProductionBpd > 0;
+
+                return (
+                  <div
+                    key={fMayor.id}
+                    className="bg-slate-950 border border-slate-800 hover:border-slate-700 p-4 rounded-xl flex flex-col justify-between transition-all shadow-sm"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-800">
+                          Cidade Fictícia Autônoma
+                        </span>
+                        <span className="text-[10px] font-mono text-emerald-400 font-bold">
+                          {fMayor.approvalRating}% Aprov.
+                        </span>
+                      </div>
+
+                      <h4 className="text-base font-black text-white">{fMayor.cityName}</h4>
+                      <p className="text-xs text-slate-400 mb-3">
+                        {fMayor.name} ({fMayor.party})
+                      </p>
+
+                      <div className="space-y-1.5 text-xs text-slate-300 mb-4 bg-slate-900/60 p-2.5 rounded-lg border border-slate-800/80">
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">População:</span>
+                          <strong className="text-white">{fMayor.population.toLocaleString()} hab.</strong>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Tesouro:</span>
+                          <strong className="text-emerald-400">R$ {fMayor.treasury.toLocaleString()}</strong>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Turistas/mês:</span>
+                          <strong className="text-emerald-300">{fMayor.touristsPerMonth.toLocaleString()}</strong>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Energia Excedente:</span>
+                          <strong className={fMayor.energySurplusMw >= 0 ? 'text-sky-300' : 'text-rose-400'}>
+                            {fMayor.energySurplusMw >= 0 ? `+${fMayor.energySurplusMw}` : fMayor.energySurplusMw} MW
+                          </strong>
+                        </div>
+                        {fMayor.oilProductionBpd > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-slate-400">Petróleo:</span>
+                            <strong className="text-amber-400">{fMayor.oilProductionBpd} bpd</strong>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-800 flex gap-2">
+                      <button
+                        onClick={() => {
+                          sounds.playClick();
+                          setSelectedTargetMayorId(fMayor.id);
+                          setActiveTab('tratados');
+                        }}
+                        className="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-lg transition-colors flex items-center justify-center gap-1.5 border border-slate-700"
+                      >
+                        <Handshake className="w-3.5 h-3.5 text-amber-400" />
+                        Negociar Tratado
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -368,38 +569,91 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
       {/* ABA 2: TRATADOS & NEGOCIAÇÕES BILATERAIS */}
       {activeTab === 'tratados' && (
         <div className="space-y-6">
-          {/* Propostas de Tratado Rápido */}
+          {/* Seletor do Prefeito com quem negociar */}
+          <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+            <span className="text-xs font-bold uppercase text-slate-400 block mb-2">
+              Escolha a Prefeitura com quem deseja negociar o Tratado:
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {realPartner && (
+                <button
+                  onClick={() => {
+                    sounds.playClick();
+                    setSelectedTargetMayorId(realPartner.id);
+                  }}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-2 border transition-all ${
+                    selectedTargetMayorId === realPartner.id
+                      ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md ring-2 ring-emerald-300'
+                      : 'bg-emerald-950/60 text-emerald-300 border-emerald-600/50 hover:bg-emerald-900/60'
+                  }`}
+                >
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]"></span>
+                  ⭐ {realPartner.name} ({realPartner.cityName} - Jogador Real Online)
+                </button>
+              )}
+
+              {fictitiousMayors.map((fm) => (
+                <button
+                  key={fm.id}
+                  onClick={() => {
+                    sounds.playClick();
+                    setSelectedTargetMayorId(fm.id);
+                  }}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 border transition-all ${
+                    selectedTargetMayorId === fm.id
+                      ? 'bg-sky-500 text-slate-950 border-sky-400 shadow-md font-black'
+                      : 'bg-slate-950 text-slate-300 border-slate-800 hover:bg-slate-800'
+                  }`}
+                >
+                  <Building className="w-3.5 h-3.5" />
+                  {fm.cityName} ({fm.name})
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Propostas de Tratado */}
           <div>
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
-              <Handshake className="w-4 h-4 text-amber-400" />
-              Propor Tratado Bilateral com a Cidade Vizinha (Ratificação em 60s)
-            </h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                <Handshake className="w-4 h-4 text-amber-400" />
+                Propor Tratado para {selectedTargetProfile?.name} ({selectedTargetProfile?.cityName})
+              </h3>
+              {selectedTargetProfile?.isRealPlayer && (
+                <span className="text-xs text-emerald-400 font-bold bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/40">
+                  ⚡ O jogador receberá um alerta na tela dele para ratificar em até 60s
+                </span>
+              )}
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {/* Tratado 1: Corredor de Turismo */}
-              <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col justify-between hover:border-slate-700 transition-all">
+              <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col justify-between hover:border-slate-700 transition-all shadow-sm">
                 <div>
                   <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase mb-1">
                     <Palmtree className="w-4 h-4" />
                     Turismo Integrado
                   </div>
                   <h4 className="font-bold text-white text-sm mb-1">
-                    Corredor Turístico Metropolitano
+                    Corredor Turístico Regional Compartilhado
                   </h4>
                   <p className="text-xs text-slate-300 leading-relaxed mb-3">
-                    Abre linhas expressas de turismo conjunto entre as cidades. Aumenta os turistas em ambas
-                    as cidades em <strong className="text-emerald-300">+30%</strong> e gera receita de hotéis e
-                    restaurantes.
+                    Abre linhas expressas de turismo mútuo com {selectedTargetProfile?.cityName}. Aumenta os turistas em
+                    ambas as cidades em <strong className="text-emerald-300">+30%</strong> e gera receita hoteleira.
                   </p>
                 </div>
                 <button
                   onClick={() => {
+                    sounds.playStamp();
                     onProposeTreaty({
                       type: 'tourism_corridor',
-                      title: 'Corredor Turístico Regional Compartilhado',
-                      details: 'Acordo de incentivo a pacotes turísticos mútuos com linhas expressas de ônibus.',
-                      amount: 30, // +30% tourists
+                      title: `Corredor Turístico ${cityState.cityName} & ${selectedTargetProfile?.cityName}`,
+                      details: `Incentivo a pacotes turísticos e linhas de ônibus expresso integrando as cidades.`,
+                      amount: 30,
                       monthlyCostOrPrice: 40000,
+                      targetMayorRole: selectedTargetProfile?.role || 'mayor_south',
+                      targetMayorName: selectedTargetProfile?.name,
+                      targetCityName: selectedTargetProfile?.cityName,
                     });
                   }}
                   className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg transition-colors shadow-sm"
@@ -409,7 +663,7 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
               </div>
 
               {/* Tratado 2: Intercâmbio de Mão-de-Obra */}
-              <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col justify-between hover:border-slate-700 transition-all">
+              <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col justify-between hover:border-slate-700 transition-all shadow-sm">
                 <div>
                   <div className="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase mb-1">
                     <Briefcase className="w-4 h-4" />
@@ -419,18 +673,22 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
                     Pacto Regional de Empregos & Trabalhadores
                   </h4>
                   <p className="text-xs text-slate-300 leading-relaxed mb-3">
-                    Integra o sistema de transporte operário. A cidade industrial absorve trabalhadores da
-                    cidade vizinha, reduzindo o desemprego para ambas.
+                    Integra o transporte de operários. Permite absorção mútua de vagas industriais,
+                    reduzindo a taxa de desemprego das duas cidades.
                   </p>
                 </div>
                 <button
                   onClick={() => {
+                    sounds.playStamp();
                     onProposeTreaty({
                       type: 'worker_migration',
-                      title: 'Pacto de Intercâmbio de Mão-de-Obra',
-                      details: 'Transporte integrado de trabalhadores para os polos industriais metropolitanos.',
-                      amount: 1500, // 1500 vagas
+                      title: `Pacto de Mão-de-Obra ${cityState.cityName} & ${selectedTargetProfile?.cityName}`,
+                      details: `Linhas integradas de transporte operário para os distritos industriais.`,
+                      amount: 1500,
                       monthlyCostOrPrice: 25000,
+                      targetMayorRole: selectedTargetProfile?.role || 'mayor_south',
+                      targetMayorName: selectedTargetProfile?.name,
+                      targetCityName: selectedTargetProfile?.cityName,
                     });
                   }}
                   className="w-full py-2 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold text-xs rounded-lg transition-colors shadow-sm"
@@ -439,30 +697,34 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
                 </button>
               </div>
 
-              {/* Tratado 3: Venda de Energia Elétrica MW */}
-              <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col justify-between hover:border-slate-700 transition-all">
+              {/* Tratado 3: Fornecimento de Energia MW */}
+              <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col justify-between hover:border-slate-700 transition-all shadow-sm">
                 <div>
                   <div className="flex items-center gap-2 text-sky-400 font-bold text-xs uppercase mb-1">
                     <Zap className="w-4 h-4" />
-                    Rede Elétrica
+                    Rede Elétrica Metropolitana
                   </div>
                   <h4 className="font-bold text-white text-sm mb-1">
                     Contrato de Fornecimento de Energia (15 MW)
                   </h4>
                   <p className="text-xs text-slate-300 leading-relaxed mb-3">
-                    Exporta 15 Megawatts (MW) da sua geração excedente para a cidade vizinha a um valor
-                    mensal de <strong className="text-sky-300">R$ 120.000/mês</strong>.
+                    Transfere 15 Megawatts (MW) excedentes da sua matriz para {selectedTargetProfile?.cityName} a um valor mensal
+                    de <strong className="text-sky-300">R$ 120.000/mês</strong>.
                   </p>
                 </div>
                 <button
                   disabled={cityState.energySurplusMw < 10}
                   onClick={() => {
+                    sounds.playStamp();
                     onProposeTreaty({
                       type: 'power_contract',
-                      title: 'Contrato de Fornecimento de Energia (15 MW)',
-                      details: 'Venda direta de 15 MW excedentes de energia limpa para abastecer a cidade vizinha.',
+                      title: `Contrato de Energia (15 MW) para ${selectedTargetProfile?.cityName}`,
+                      details: `Transferência de 15 MW de energia limpa excedente para a rede vizinha.`,
                       amount: 15,
                       monthlyCostOrPrice: 120000,
+                      targetMayorRole: selectedTargetProfile?.role || 'mayor_south',
+                      targetMayorName: selectedTargetProfile?.name,
+                      targetCityName: selectedTargetProfile?.cityName,
                     });
                   }}
                   className={`w-full py-2 font-bold text-xs rounded-lg transition-colors shadow-sm ${
@@ -471,7 +733,7 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
                       : 'bg-slate-800 text-slate-500 cursor-not-allowed'
                   }`}
                 >
-                  {cityState.energySurplusMw >= 10 ? 'Vender 15 MW de Energia' : 'Sem Energia Suficiente (<10 MW)'}
+                  {cityState.energySurplusMw >= 10 ? 'Exportar 15 MW de Energia' : 'Sem Energia Suficiente (<10 MW)'}
                 </button>
               </div>
             </div>

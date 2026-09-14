@@ -448,6 +448,38 @@ export default function App() {
         onShareRoom={multiplayer.shareRoomLink}
       />
 
+      {/* Banner de Prefeita Conectada (Namorada / 2º Jogador) */}
+      {multiplayer.partnerMayor && (
+        <div className="bg-gradient-to-r from-emerald-950/90 via-slate-900 to-emerald-950/90 border-b border-emerald-500/40 py-2 px-4 shadow-sm">
+          <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2 text-emerald-300">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              </span>
+              <strong className="text-white font-bold">2ª Prefeitura Conectada na Região:</strong>
+              <span>
+                {multiplayer.partnerMayor.name} governando <strong>{multiplayer.partnerMayor.cityName}</strong> (Sala {multiplayer.roomId})
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setActiveView('negociar')}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold px-3 py-1 rounded-lg transition-all shadow-sm"
+              >
+                Mesa de Negociação
+              </button>
+              <button
+                onClick={() => setActiveView('regional')}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold px-3 py-1 rounded-lg transition-all"
+              >
+                Consórcio Regional
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Conteúdo Principal */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6">
         {activeView === 'mesa' && (
@@ -502,6 +534,7 @@ export default function App() {
             roomId={multiplayer.roomId}
             isConnected={multiplayer.isConnected}
             myRole={multiplayer.myRole}
+            myPlayerId={multiplayer.myPlayerId}
             otherMayors={multiplayer.otherMayors}
             treaties={multiplayer.treaties}
             chatMessages={multiplayer.chatMessages}
@@ -510,6 +543,8 @@ export default function App() {
             onRespondTreaty={multiplayer.respondToTreaty}
             onSendMessage={multiplayer.sendChatMessage}
             onShareRoom={multiplayer.shareRoomLink}
+            onSendDirectAid={multiplayer.sendDirectAid}
+            onOpenLoansModal={() => setIsLoansModalOpen(true)}
           />
         )}
 
@@ -517,6 +552,7 @@ export default function App() {
           <EconomicRankingView
             cityState={cityState}
             otherMayors={multiplayer.otherMayors}
+            myPlayerId={multiplayer.myPlayerId}
             onOpenLoansWithCity={(cityName, mayorName) => {
               setIsLoansModalOpen(true);
             }}
@@ -531,6 +567,7 @@ export default function App() {
             treaties={multiplayer.treaties}
             chatMessages={multiplayer.chatMessages}
             myRole={multiplayer.myRole}
+            myPlayerId={multiplayer.myPlayerId}
             isConnected={multiplayer.isConnected}
             roomId={multiplayer.roomId}
             onProposeTreaty={multiplayer.proposeTreaty}
@@ -547,6 +584,7 @@ export default function App() {
         <IntermunicipalLoansModal
           cityState={cityState}
           otherMayors={multiplayer.otherMayors}
+          myPlayerId={multiplayer.myPlayerId}
           onProposeLoan={handleProposeLoan}
           onAcceptLoan={handleAcceptLoan}
           onRejectLoan={handleRejectLoan}

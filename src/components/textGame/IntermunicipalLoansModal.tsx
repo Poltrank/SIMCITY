@@ -31,11 +31,13 @@ interface IntermunicipalLoansModalProps {
   onAcceptLoan: (loan: IntermunicipalLoan) => void;
   onRejectLoan: (loanId: string) => void;
   onClose: () => void;
+  myPlayerId?: string;
 }
 
 export const IntermunicipalLoansModal: React.FC<IntermunicipalLoansModalProps> = ({
   cityState,
   otherMayors,
+  myPlayerId,
   onProposeLoan,
   onAcceptLoan,
   onRejectLoan,
@@ -44,9 +46,16 @@ export const IntermunicipalLoansModal: React.FC<IntermunicipalLoansModalProps> =
   const [activeTab, setActiveTab] = useState<'active' | 'propose'>('active');
 
   // Form state
-  const otherMayorsList = (Object.values(otherMayors) as RegionalMayorProfile[]).filter(
-    (m) => m.name !== cityState.mayorName
-  );
+  const otherMayorsList = (Object.values(otherMayors) as RegionalMayorProfile[])
+    .filter((m) => {
+      if (myPlayerId && m.id) return m.id !== myPlayerId;
+      return m.name !== cityState.mayorName || m.cityName !== cityState.cityName;
+    })
+    .sort((a, b) => {
+      if (a.isRealPlayer && !b.isRealPlayer) return -1;
+      if (!a.isRealPlayer && b.isRealPlayer) return 1;
+      return 0;
+    });
 
   const [selectedTargetMayor, setSelectedTargetMayor] = useState<string>(
     otherMayorsList[0]?.name || 'Prefeito do Município Sul'

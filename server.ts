@@ -1,6 +1,7 @@
 import express from 'express';
 import http from 'http';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer as createViteServer } from 'vite';
@@ -30,6 +31,7 @@ interface MayorPlayer {
   cursor?: { x: number; y: number };
   treasury: number;
   population: number;
+  isOnline?: boolean;
 }
 
 interface RoomTradeOffer {
@@ -60,7 +62,26 @@ interface RoomState {
   };
 }
 
-const rooms: Record<string, RoomState> = {};
+const ROOMS_FILE = '/tmp/prefeito_rooms.json';
+let rooms: Record<string, RoomState> = {};
+
+try {
+  if (fs.existsSync(ROOMS_FILE)) {
+    const raw = fs.readFileSync(ROOMS_FILE, 'utf-8');
+    rooms = JSON.parse(raw);
+    console.log(`[Multiplayer] Loaded ${Object.keys(rooms).length} active rooms from disk.`);
+  }
+} catch (e) {
+  console.warn('[Multiplayer] Failed to load rooms from disk:', e);
+}
+
+function saveRoomsToDisk() {
+  try {
+    fs.writeFileSync(ROOMS_FILE, JSON.stringify(rooms, null, 2), 'utf-8');
+  } catch (e) {
+    // Ignore disk write errors silently
+  }
+}
 
 function getOrCreateRoom(roomId: string): RoomState {
   const cleanId = roomId.toUpperCase().trim() || 'REGIAO1';
@@ -90,6 +111,7 @@ function getOrCreateRoom(roomId: string): RoomState {
         waterPrice: 0,
       },
     };
+    saveRoomsToDisk();
   }
   return rooms[cleanId];
 }
@@ -236,30 +258,47 @@ app.post('/api/multiplayer/join', (req, res) => {
 
     room.players[playerId] = player;
 
-    if (profile) {
-      room.cityProfiles[playerId] = {
-        ...profile,
-        id: playerId,
-        name: player.name,
-        cityName: player.cityName,
-        role: player.role,
-        isOnline: true,
-        isRealPlayer: true,
-        lastUpdated: Date.now(),
-      };
-    }
+    room.cityProfiles[playerId] = {
+      id: playerId,
+      name: player.name,
+      cityName: player.cityName,
+      role: player.role,
+      isOnline: true,
+      isRealPlayer: true,
+      lastUpdated: Date.now(),
+      population: player.population || 150,
+      treasury: player.treasury || 25000,
+      jobs: 0,
+      unemploymentRate: 5.0,
+      touristsPerMonth: 0,
+      oilProductionBpd: 0,
+      goldProductionKg: 0,
+      energyProductionMw: 0,
+      energySurplusMw: 0,
+      fiscalRating: 'A',
+      approvalRating: 50,
+      ...(profile || {}),
+    };
 
     broadcastToRoom(room.id, {
       type: 'player_joined',
       player,
+      cityProfiles: room.cityProfiles,
       chatMessage: {
         id: 'sys_' + Date.now(),
-        sender: 'Sistema',
-        text: `${player.name} (${player.cityName}) conectou-se à região!`,
+        sender: 'Consórcio Regional',
+        text: `🟢 ${player.name} (${player.cityName}) conectou-se à região!`,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         role: 'system',
       },
     });
+
+    broadcastToRoom(room.id, {
+      type: 'city_profiles_update',
+      cityProfiles: room.cityProfiles,
+    });
+
+    saveRoomsToDisk();
 
     return res.json({
       success: true,
@@ -279,7 +318,7 @@ app.post('/api/multiplayer/join', (req, res) => {
   }
 });
 
-// 2. Poll Room State & Heartbeat via HTTP
+// 2. Poll Room State via HTTP
 app.get('/api/multiplayer/room/:roomId', (req, res) => {
   try {
     const room = getOrCreateRoom(req.params.roomId);
@@ -288,10 +327,85 @@ app.get('/api/multiplayer/room/:roomId', (req, res) => {
       room.cityProfiles[playerId].lastUpdated = Date.now();
       room.cityProfiles[playerId].isOnline = true;
     }
-    // Mark profiles as offline if no ping in 45s (except self)
+    // Mark profiles as offline if no ping in 90s (never delete them)
     const now = Date.now();
     Object.values(room.cityProfiles).forEach((p) => {
-      if (p.id !== playerId && now - (p.lastUpdated || 0) > 45000) {
+      if (p.id !== playerId && now - (p.lastUpdated || 0) > 90000) {
+        p.isOnline = false;
+      }
+    });
+
+    return res.json({
+      success: true,
+      room: {
+        id: room.id,
+        players: room.players,
+        cityProfiles: room.cityProfiles,
+        regionalTreaties: room.regionalTreaties,
+        tradeOffers: room.tradeOffers,
+        chatMessages: room.chatMessages,
+        activeDeals: room.activeDeals,
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// 2b. Universal Heartbeat + Sync in ONE roundtrip (works anywhere, mobile 4G/5G, wifi)
+app.post('/api/multiplayer/heartbeat', (req, res) => {
+  try {
+    const { roomId, playerId, profile } = req.body;
+    if (!playerId) {
+      return res.status(400).json({ error: 'Missing playerId' });
+    }
+    const cleanRoom = String(roomId || 'BRASIL1').toUpperCase().trim();
+    const room = getOrCreateRoom(cleanRoom);
+
+    if (profile) {
+      const existing = room.cityProfiles[playerId] || {};
+      room.cityProfiles[playerId] = {
+        ...existing,
+        ...profile,
+        id: playerId,
+        name: profile.name || existing.name || 'Prefeito(a)',
+        cityName: profile.cityName || existing.cityName || 'Município',
+        party: profile.party || existing.party || 'PSD',
+        isOnline: true,
+        isRealPlayer: true,
+        lastUpdated: Date.now(),
+      };
+
+      if (!room.players[playerId]) {
+        const playerIndex = Object.keys(room.players).length;
+        const colorPalette = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f97316'];
+        room.players[playerId] = {
+          id: playerId,
+          name: profile.name || 'Prefeito(a)',
+          cityName: profile.cityName || 'Município',
+          party: profile.party || 'PSD',
+          role: playerIndex === 0 ? 'mayor_north' : 'mayor_south',
+          color: colorPalette[playerIndex % colorPalette.length],
+          isOnline: true,
+          treasury: profile.treasury || 25000,
+          population: profile.population || 150,
+        };
+      } else {
+        room.players[playerId].name = profile.name || room.players[playerId].name;
+        room.players[playerId].cityName = profile.cityName || room.players[playerId].cityName;
+        room.players[playerId].party = profile.party || room.players[playerId].party;
+        room.players[playerId].isOnline = true;
+      }
+      saveRoomsToDisk();
+    } else if (room.cityProfiles[playerId]) {
+      room.cityProfiles[playerId].lastUpdated = Date.now();
+      room.cityProfiles[playerId].isOnline = true;
+    }
+
+    // Mark profiles as offline if no ping in 90s
+    const now = Date.now();
+    Object.values(room.cityProfiles).forEach((p) => {
+      if (p.id !== playerId && now - (p.lastUpdated || 0) > 90000) {
         p.isOnline = false;
       }
     });
@@ -328,6 +442,7 @@ app.post('/api/multiplayer/sync', (req, res) => {
       isRealPlayer: true,
       lastUpdated: Date.now(),
     };
+    saveRoomsToDisk();
     broadcastToRoom(room.id, {
       type: 'city_profiles_update',
       cityProfiles: room.cityProfiles,
@@ -629,16 +744,22 @@ wss.on('connection', (ws: ClientWS) => {
           {
             type: 'player_joined',
             player: newPlayer,
+            cityProfiles: room.cityProfiles,
             chatMessage: {
               id: 'sys_' + Date.now(),
-              sender: 'Sistema',
-              text: `${newPlayer.name} (${newPlayer.role === 'mayor_north' ? 'Distrito Norte' : 'Distrito Sul'}) conectou!`,
+              sender: 'Consórcio Regional',
+              text: `🟢 ${newPlayer.name} (${newPlayer.cityName}) conectou-se ao consórcio!`,
               time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               role: 'system',
             },
           },
           ws
         );
+
+        broadcastToRoom(room.id, {
+          type: 'city_profiles_update',
+          cityProfiles: room.cityProfiles,
+        });
       }
 
       // Tile built or demolished in real time
@@ -958,12 +1079,13 @@ wss.on('connection', (ws: ClientWS) => {
     if (ws.roomId && ws.playerId) {
       const room = rooms[ws.roomId];
       if (room && room.players[ws.playerId]) {
-        const leaving = room.players[ws.playerId];
-        delete room.players[ws.playerId];
+        // Mark offline on transient mobile socket disconnection, but preserve city profile
+        if (room.cityProfiles[ws.playerId]) {
+          room.cityProfiles[ws.playerId].isOnline = false;
+        }
         broadcastToRoom(ws.roomId, {
-          type: 'player_left',
-          playerId: ws.playerId,
-          playerName: leaving.name,
+          type: 'city_profiles_update',
+          cityProfiles: room.cityProfiles,
         });
       }
     }

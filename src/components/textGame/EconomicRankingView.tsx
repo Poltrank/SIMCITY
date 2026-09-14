@@ -22,6 +22,7 @@ import { sounds } from '../../audio/soundManager';
 interface EconomicRankingViewProps {
   cityState: PrefeitoCityState;
   otherMayors: Record<string, RegionalMayorProfile>;
+  myPlayerId?: string;
   onOpenLoansWithCity: (cityName: string, mayorName: string) => void;
   onOpenMultiplayer: () => void;
 }
@@ -49,6 +50,7 @@ export interface CityRankingEntry {
 export const EconomicRankingView: React.FC<EconomicRankingViewProps> = ({
   cityState,
   otherMayors,
+  myPlayerId,
   onOpenLoansWithCity,
   onOpenMultiplayer,
 }) => {
@@ -86,7 +88,7 @@ export const EconomicRankingView: React.FC<EconomicRankingViewProps> = ({
       };
 
       const map = new Map<string, CityRankingEntry>();
-      map.set(myEntry.cityName.toLowerCase(), myEntry);
+      map.set(myEntry.cityName.toLowerCase() + '_mine', myEntry);
 
       serverList.forEach((entry) => {
         map.set(entry.cityName.toLowerCase(), entry);
@@ -94,12 +96,15 @@ export const EconomicRankingView: React.FC<EconomicRankingViewProps> = ({
 
       // Also merge active room mayors
       (Object.values(otherMayors) as RegionalMayorProfile[]).forEach((m) => {
-        const key = m.cityName.toLowerCase();
+        const isSelf = myPlayerId ? m.id === myPlayerId : m.name === cityState.mayorName;
+        if (isSelf) return;
+
+        const key = m.id || m.cityName.toLowerCase() + '_' + m.name.toLowerCase();
         if (!map.has(key)) {
           map.set(key, {
             cityName: m.cityName,
             mayorName: m.name,
-            party: 'PARTIDO REGIONAL',
+            party: m.party || 'PARTIDO REGIONAL',
             treasury: m.treasury,
             monthlyRevenue: Math.round(m.treasury * 0.15),
             monthlyExpenses: Math.round(m.treasury * 0.12),
