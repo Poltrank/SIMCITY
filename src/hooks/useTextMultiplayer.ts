@@ -9,6 +9,7 @@ import {
   IntermunicipalLoan,
 } from '../types/textGame';
 import { sounds } from '../audio/soundManager';
+import { worldSync } from '../services/multiplayerSync';
 
 interface UseTextMultiplayerOptions {
   onReceiveDirectAid?: (amount: number, fromMayor: string, fromCity: string) => void;
@@ -154,7 +155,16 @@ export function useTextMultiplayer(
     return pid;
   });
 
-  const [otherMayors, setOtherMayors] = useState<Record<string, RegionalMayorProfile>>(DEFAULT_NEIGHBORING_MAYORS);
+  const [otherMayors, setOtherMayors] = useState<Record<string, RegionalMayorProfile>>(() => {
+    try {
+      const saved = localStorage.getItem('prefeito_persisted_profiles');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return mergeMayorsWithRealFirst(DEFAULT_NEIGHBORING_MAYORS, parsed);
+      }
+    } catch (e) {}
+    return DEFAULT_NEIGHBORING_MAYORS;
+  });
   const [treaties, setTreaties] = useState<RegionalTreaty[]>([]);
   const [chatMessages, setChatMessages] = useState<RegionalChatMessage[]>([]);
   const [activeTab, setActiveTab] = useState<'lobby' | 'treaties' | 'chat'>('lobby');
@@ -674,14 +684,197 @@ export function useTextMultiplayer(
     const pollInterval = setInterval(() => {
       sendHeartbeatHttp(activeRoomRef.current, myPlayerId);
 
-      // If WebSocket died, attempt reconnection to current room
-      if (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED) {
-        connectToRoom(activeRoomRef.current);
-      }
+      // Broadcast to Global Live World via cloud MQTT relay
+      try {
+        const currentProfile = buildProfilePayload(cityStateRef.current, myRole, myPlayerId);
+        worldSync.broadcast({
+          type: 'heartbeat',
+          senderId: myPlayerId,
+          senderName: cityStateRef.current.mayorName,
+          senderCity: cityStateRef.current.cityName,
+          profile: currentProfile,
+        });
+      } catch (e) {}
     }, 2000);
 
     return () => clearInterval(pollInterval);
-  }, [connectToRoom, sendHeartbeatHttp, myPlayerId]);
+  }, [connectToRoom, sendHeartbeatHttp, myPlayerId, buildProfilePayload, myRole]);
+
+  // Subscribe to Global Live World cloud sync (MQTT broker across all networks & devices)
+  useEffect(() => {
+    const unsubscribe = worldSync.subscribe((payload) => {
+      // Ignore messages from self
+      if (payload.senderId === myPlayerId) return;
+
+      if (payload.type === 'heartbeat' && payload.profile) {
+        setIsConnected(true);
+        const partnerProfile = payload.profile;
+        setOtherMayors((prev) => {
+          const updated = { ...prev, [partnerProfile.id]: partnerProfile };
+          try {
+            const realOnes: Record<string, RegionalMayorProfile> = {};
+            (Object.values(updated) as RegionalMayorProfile[]).forEach((m) => {
+              if (m.isRealPlayer) realOnes[m.id] = m;
+            });
+            localStorage.setItem('prefeito_persisted_profiles', JSON.stringify(realOnes));
+          } catch (e) {}
+
+          if (prevPartnerIdRef.current !== partnerProfile.id) {
+            prevPartnerIdRef.current = partnerProfile.id;
+            try {
+              sounds.playCelebration();
+            } catch (e) {}
+            const joinNotif: NegotiationNotification = {
+              id: 'join_' + Date.now(),
+              type: 'aid_received',
+              title: '🎉 Prefeita(o) Conectada(o) Ao Vivo!',
+              senderMayor: partnerProfile.name,
+              senderCity: partnerProfile.cityName,
+              senderRole: partnerProfile.role || 'mayor_south',
+              message: `${partnerProfile.name} conectou a cidade ${partnerProfile.cityName} ao vivo no Mundo Regional! Vocês já estão no mesmo mundo e podem cooperar e negociar!`,
+              timestamp: Date.now(),
+              read: false,
+            };
+            setActiveAlertNotification(joinNotif);
+            setNotifications((n) => [joinNotif, ...n]);
+          }
+          return updated;
+        });
+      }
+
+      if (payload.type === 'chat' && payload.message) {
+        setChatMessages((prev) => {
+          if (prev.some((m) => m.id === payload.message!.id)) return prev;
+          return [...prev, payload.message!];
+        });
+        try {
+          sounds.playTick();
+        } catch (e) {}
+      }
+
+      if (payload.type === 'treaty_proposed' && payload.treaty) {
+        const treaty = payload.treaty;
+        setTreaties((prev) => [treaty, ...prev.filter((t) => t.id !== treaty.id)]);
+        const notif: NegotiationNotification = {
+          id: 'notif_tr_' + Date.now(),
+          type: 'treaty_proposed',
+          title: `Nova Proposta: ${treaty.title}`,
+          senderMayor: payload.senderName || 'Prefeito Parceiro',
+          senderCity: payload.senderCity || 'Município Parceiro',
+          senderRole: 'mayor_south',
+          message: treaty.details,
+          treatyId: treaty.id,
+          amount: treaty.amount,
+          monthlyCostOrPrice: treaty.monthlyCostOrPrice,
+          timestamp: Date.now(),
+          read: false,
+        };
+        setActiveAlertNotification(notif);
+        setNotifications((n) => [notif, ...n]);
+        try {
+          sounds.playStamp();
+        } catch (e) {}
+        options?.onTreatyProposed?.(treaty);
+      }
+
+      if ((payload.type === 'treaty_ratified' || payload.type === 'treaty_rejected') && payload.treaty) {
+        const isAccepted = payload.type === 'treaty_ratified';
+        setTreaties((prev) =>
+          prev.map((t) =>
+            t.id === payload.treaty!.id
+              ? { ...t, status: isAccepted ? 'active' : 'rejected' }
+              : t
+          )
+        );
+        const notif: NegotiationNotification = {
+          id: 'notif_tr_resp_' + Date.now(),
+          type: isAccepted ? 'treaty_ratified' : 'treaty_rejected',
+          title: isAccepted ? `Tratado Ratificado!` : `Tratado Vetado`,
+          senderMayor: payload.senderName || 'Prefeito Parceiro',
+          senderCity: payload.senderCity || 'Cúpula Regional',
+          senderRole: 'mayor_south',
+          message: isAccepted
+            ? `O gabinete parceiro aprovou e sancionou "${payload.treaty.title}". O convênio já está em vigor!`
+            : `O gabinete parceiro vetou "${payload.treaty.title}".`,
+          treatyId: payload.treaty.id,
+          timestamp: Date.now(),
+          read: false,
+        };
+        setActiveAlertNotification(notif);
+        setNotifications((n) => [notif, ...n]);
+        if (isAccepted) {
+          try {
+            sounds.playFanfare();
+          } catch (e) {}
+          options?.onTreatyRatified?.(payload.treaty);
+        } else {
+          try {
+            sounds.playAlert();
+          } catch (e) {}
+        }
+      }
+
+      if (payload.type === 'direct_aid' && payload.aidEvent) {
+        const event = payload.aidEvent;
+        const notif: NegotiationNotification = {
+          id: 'notif_aid_' + Date.now(),
+          type: 'aid_received',
+          title: `Socorro Municipal: R$ ${event.amount.toLocaleString()}`,
+          senderMayor: event.fromMayorName,
+          senderCity: event.fromCityName,
+          senderRole: event.fromRole,
+          message: `Transferência emergencial de R$ ${event.amount.toLocaleString()} recebida com sucesso da Prefeitura de ${event.fromCityName}!`,
+          amount: event.amount,
+          timestamp: Date.now(),
+          read: false,
+        };
+        setActiveAlertNotification(notif);
+        setNotifications((n) => [notif, ...n]);
+        try {
+          sounds.playCash();
+        } catch (e) {}
+        options?.onReceiveDirectAid?.(event.amount, event.fromMayorName, event.fromCityName);
+      }
+
+      if (payload.type === 'loan_proposed' && payload.loan) {
+        const loan = payload.loan;
+        const notif: NegotiationNotification = {
+          id: 'notif_loan_' + Date.now(),
+          type: 'loan_proposed',
+          title: `Oferta de Empréstimo: R$ ${loan.principal.toLocaleString()}`,
+          senderMayor: loan.lenderMayor,
+          senderCity: loan.lenderCity,
+          senderRole: 'mayor_north',
+          message: `${loan.lenderCity} ofereceu R$ ${loan.principal.toLocaleString()} a ${loan.interestRateMonthly}% a.m. em ${loan.totalInstallments} parcelas. Motivo: ${loan.purpose}.`,
+          loanDetails: loan,
+          timestamp: Date.now(),
+          read: false,
+        };
+        setActiveAlertNotification(notif);
+        setNotifications((n) => [notif, ...n]);
+        try {
+          sounds.playStamp();
+        } catch (e) {}
+        options?.onLoanProposed?.(loan);
+      }
+
+      if (payload.type === 'loan_responded' && payload.loan) {
+        if (payload.loanAccepted) {
+          try {
+            sounds.playCash();
+          } catch (e) {}
+          options?.onLoanAccepted?.(payload.loan);
+        } else {
+          try {
+            sounds.playAlert();
+          } catch (e) {}
+          options?.onLoanRejected?.(payload.loan.id);
+        }
+      }
+    });
+
+    return unsubscribe;
+  }, [myPlayerId, options]);
 
   // Ratification countdown timer for pending treaties (60 seconds)
   useEffect(() => {
@@ -764,6 +957,15 @@ export function useTextMultiplayer(
         );
       }
 
+      // Broadcast to Global Live World via cloud MQTT
+      worldSync.broadcast({
+        type: 'treaty_proposed',
+        senderId: myPlayerId,
+        senderName: cityState.mayorName,
+        senderCity: cityState.cityName,
+        treaty: newTreaty,
+      });
+
       // Also send via HTTP REST
       fetch('/api/multiplayer/treaty/propose', {
         method: 'POST',
@@ -790,6 +992,15 @@ export function useTextMultiplayer(
         prev.map((t) => (t.id === treatyId ? { ...t, status: accept ? 'active' : 'rejected' } : t))
       );
 
+      const matchedTreaty = treaties.find((t) => t.id === treatyId);
+      worldSync.broadcast({
+        type: accept ? 'treaty_ratified' : 'treaty_rejected',
+        senderId: myPlayerId,
+        senderName: cityState.mayorName,
+        senderCity: cityState.cityName,
+        treaty: matchedTreaty ? { ...matchedTreaty, status: accept ? 'active' : 'rejected' } : ({ id: treatyId, title: 'Tratado Regional' } as any),
+      });
+
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         wsRef.current.send(
           JSON.stringify({
@@ -812,7 +1023,7 @@ export function useTextMultiplayer(
         }),
       }).catch(() => {});
     },
-    [roomId]
+    [roomId, treaties, myPlayerId, cityState]
   );
 
   // Send chat message (dispatches to WS and HTTP)
@@ -829,6 +1040,13 @@ export function useTextMultiplayer(
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       setChatMessages((prev) => [...prev, localMsg]);
+
+      worldSync.broadcast({
+        type: 'chat',
+        senderId: myPlayerId,
+        senderName,
+        message: localMsg,
+      });
 
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         wsRef.current.send(
@@ -854,7 +1072,7 @@ export function useTextMultiplayer(
         }),
       }).catch(() => {});
     },
-    [roomId, cityState, myRole]
+    [roomId, cityState, myRole, myPlayerId]
   );
 
   // Direct Aid (dispatches to WS and HTTP)
@@ -865,6 +1083,8 @@ export function useTextMultiplayer(
 
       const targetRole = myRole === 'mayor_north' ? 'mayor_south' : 'mayor_north';
       const aidEvent = {
+        id: 'aid_' + Date.now(),
+        timestamp: Date.now(),
         fromMayorName: cityState.mayorName,
         fromCityName: cityState.cityName,
         fromRole: myRole,
@@ -873,6 +1093,14 @@ export function useTextMultiplayer(
         category,
         note: note || 'Cooperação intermunicipal emergencial',
       };
+
+      worldSync.broadcast({
+        type: 'direct_aid',
+        senderId: myPlayerId,
+        senderName: cityState.mayorName,
+        senderCity: cityState.cityName,
+        aidEvent,
+      });
 
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         wsRef.current.send(
@@ -894,7 +1122,7 @@ export function useTextMultiplayer(
         }),
       }).catch(() => {});
     },
-    [myRole, cityState, roomId]
+    [myRole, cityState, roomId, myPlayerId]
   );
 
   // Propose Loan (dispatches to WS and HTTP)
@@ -933,6 +1161,14 @@ export function useTextMultiplayer(
         status: 'pending',
       };
 
+      worldSync.broadcast({
+        type: 'loan_proposed',
+        senderId: myPlayerId,
+        senderName: cityState.mayorName,
+        senderCity: cityState.cityName,
+        loan,
+      });
+
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         wsRef.current.send(
           JSON.stringify({
@@ -967,6 +1203,15 @@ export function useTextMultiplayer(
       }
 
       const loanObj = typeof loan === 'string' ? { id: loan } : loan;
+
+      worldSync.broadcast({
+        type: 'loan_responded',
+        senderId: myPlayerId,
+        senderName: cityState.mayorName,
+        senderCity: cityState.cityName,
+        loan: loanObj as any,
+        loanAccepted: accept,
+      });
 
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         wsRef.current.send(
@@ -1015,10 +1260,15 @@ export function useTextMultiplayer(
 
   // Identify connected real players (e.g. girlfriend, friend)
   const realPlayers: RegionalMayorProfile[] = (Object.values(otherMayors) as RegionalMayorProfile[]).filter(
-    (m: RegionalMayorProfile) => m.id !== myPlayerId && m.isRealPlayer
+    (m: RegionalMayorProfile) =>
+      m.id !== myPlayerId &&
+      m.isRealPlayer &&
+      (m.cityName !== cityState.cityName || m.name !== cityState.mayorName)
   );
   const partnerMayor: RegionalMayorProfile | null = realPlayers.length > 0 ? realPlayers[0] : null;
-  const isPartnerOnline = partnerMayor ? partnerMayor.isOnline !== false : false;
+  const isPartnerOnline = partnerMayor
+    ? partnerMayor.isOnline !== false && (!partnerMayor.lastUpdated || Date.now() - partnerMayor.lastUpdated < 120000)
+    : false;
 
   return {
     roomId,

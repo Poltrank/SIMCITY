@@ -458,7 +458,7 @@ export const MayorTopBar: React.FC<MayorTopBarProps> = ({
             Simular Ocorrência
           </button>
 
-          {/* Botão Multijogador Regional com Sala & Status de Parceiro */}
+          {/* Botão Multijogador Regional - Mundo Ao Vivo */}
           <div className="flex items-center gap-1.5 ml-auto">
             {partnerName ? (
               <button
@@ -468,13 +468,13 @@ export const MayorTopBar: React.FC<MayorTopBarProps> = ({
                 }}
                 className={`px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all whitespace-nowrap ${
                   isPartnerOnline !== false
-                    ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/80 shadow-[0_0_10px_rgba(16,185,129,0.2)] hover:bg-emerald-900/90 animate-pulse'
+                    ? 'bg-emerald-950/90 text-emerald-300 border border-emerald-500/80 shadow-[0_0_12px_rgba(16,185,129,0.3)] hover:bg-emerald-900/90 animate-pulse'
                     : 'bg-slate-800 text-slate-300 border border-slate-700'
                 }`}
-                title={`Parceiro(a) detectado(a) na sala ${roomId}: ${partnerName} (${partnerCityName || 'Município'})`}
+                title={`Parceiro(a) detectado(a) no Mundo Ao Vivo: ${partnerName} (${partnerCityName || 'Município'})`}
               >
                 <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]"></span>
-                <span>Prefeita: <strong className="text-white">{partnerName}</strong> ({partnerCityName})</span>
+                <span>Prefeito(a): <strong className="text-white">{partnerName}</strong> ({partnerCityName})</span>
               </button>
             ) : null}
 
@@ -486,15 +486,13 @@ export const MayorTopBar: React.FC<MayorTopBarProps> = ({
               className={`px-3 py-2 rounded-md text-xs md:text-sm font-semibold flex items-center gap-2 transition-all whitespace-nowrap ${
                 activeView === 'regional'
                   ? 'bg-sky-500 text-slate-950 shadow-md font-bold'
-                  : 'text-sky-400 bg-sky-950/40 hover:bg-sky-900/60 border border-sky-800/60'
+                  : 'text-sky-300 bg-sky-950/50 hover:bg-sky-900/70 border border-sky-700/60'
               }`}
-              title={`Região Multijogador: Sala ${roomId}`}
+              title="Mundo Regional Metropolitano Ao Vivo - Todos os prefeitos conectados em tempo real"
             >
-              <Radio className="w-4 h-4 animate-pulse" />
-              Multijogador ({roomId})
-              {isMultiplayerConnected && (
-                <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]"></span>
-              )}
+              <Radio className="w-4 h-4 animate-pulse text-sky-400" />
+              Mundo Ao Vivo
+              <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]"></span>
             </button>
           </div>
 
