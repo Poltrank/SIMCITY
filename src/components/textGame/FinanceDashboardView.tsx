@@ -57,16 +57,17 @@ export const FinanceDashboardView: React.FC<FinanceDashboardViewProps> = ({
   const isDebtBreached = cityState.debtRatio > 120.0;
 
   const cycle = cityState.economicCycle || {
-    cycleDurationSeconds: 60,
-    secondsRemaining: 60,
+    cycleDurationSeconds: 120,
+    secondsRemaining: 120,
     autoTick: true,
     lastCycleNet: cityState.netMonthly,
     totalCyclesCompleted: 0,
   };
 
+  const cycleDuration = cycle.cycleDurationSeconds || 120;
   const cycleProgress = Math.max(
     0,
-    Math.min(100, ((60 - cycle.secondsRemaining) / 60) * 100)
+    Math.min(100, ((cycleDuration - cycle.secondsRemaining) / cycleDuration) * 100)
   );
 
   const deptBudgets = cityState.departmentBudgets || {
@@ -171,25 +172,25 @@ export const FinanceDashboardView: React.FC<FinanceDashboardViewProps> = ({
                 <Clock className="w-4 h-4 animate-spin" style={{ animationDuration: '6s' }} />
               </span>
               <h3 className="font-bold text-sm md:text-base text-white">
-                Ciclo de Arrecadação & Liquidação Contábil (1 Minuto)
+                Ciclo de Arrecadação & Liquidação Contábil (2 Minutos)
               </h3>
               <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full border border-slate-700">
-                Exercício: {cityState.monthName}/{cityState.year}
+                Data: {String(cityState.day || 15).padStart(2, '0')}/{String(cityState.month || 9).padStart(2, '0')}/{cityState.year || 2026}
               </span>
             </div>
             <p className="text-xs text-slate-400 max-w-2xl">
-              A cada 60 segundos (1 minuto real), o sistema executa o recolhimento dos tributos do povo
-              (IPTU, ISS, Multas de trânsito) e repasses do governo (FPM, ICMS, Royalties), e realiza o
-              pagamento da folha salarial dos servidores e custeio das empresas públicas.
+              A cada 120 segundos (2 minutos reais), o sistema executa o recolhimento dos tributos municipais
+              (IPTU, ISS, Multas de trânsito) e repasses governamentais (FPM, ICMS, Royalties), e realiza o
+              pagamento da folha salarial dos servidores e custeio das estatais. Os dias no mandato avançam a cada 24 horas (início em 15/09/2026).
             </p>
           </div>
 
           {/* Temporizador Regressivo */}
           <div className="flex items-center gap-4 bg-slate-950 p-3 rounded-xl border border-slate-800">
-            <div className="text-center min-w-[70px]">
+            <div className="text-center min-w-[80px]">
               <span className="text-[10px] uppercase font-bold text-slate-500 block">Próximo Balanço</span>
               <span className="text-2xl font-black text-amber-400 font-mono">
-                {String(cycle.secondsRemaining).padStart(2, '0')}s
+                {Math.floor(cycle.secondsRemaining / 60)}:{String(cycle.secondsRemaining % 60).padStart(2, '0')}
               </span>
             </div>
 
@@ -230,12 +231,12 @@ export const FinanceDashboardView: React.FC<FinanceDashboardViewProps> = ({
             <span className="text-slate-400 flex items-center gap-1.5">
               <span>Arrecadação e Pagamentos em andamento:</span>
               <span className="text-slate-200 font-mono font-bold">
-                {60 - cycle.secondsRemaining}/60 segundos
+                {cycleDuration - cycle.secondsRemaining}/{cycleDuration}s
               </span>
             </span>
             <span className="font-mono text-xs font-bold text-emerald-400">
               Saldo Projetado ao Tesouro: {cityState.netMonthly >= 0 ? '+' : ''}R${' '}
-              {cityState.netMonthly.toLocaleString()}/min
+              {cityState.netMonthly.toLocaleString()} / 2min
             </span>
           </div>
 

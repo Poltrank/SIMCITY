@@ -113,8 +113,9 @@ export interface PrefeitoCityState {
   year: number;
   month: number; // 1 to 12
   monthName: string;
-  day?: number; // 1 to 31 (Tempo real)
+  day?: number; // 1 to 31 (Tempo real - 24 horas por dia)
   termMonth: number; // 1 to 48
+  gameStartRealTimestamp?: number; // Timestamp da vida real do início do jogo (inicia em 15/09/2026)
   lastRealTimestamp?: number; // Timestamp da vida real para sincronia e ausência
   fractionalTreasuryAccrual?: number; // Acúmulo de centavos do fluxo contínuo em tempo real
 
@@ -191,7 +192,7 @@ export interface PrefeitoCityState {
 
   // Ciclo Econômico em Tempo Real (Minutos)
   economicCycle: {
-    cycleDurationSeconds: number; // 60 segundos por ciclo de arrecadação/despesa
+    cycleDurationSeconds: number; // 120 segundos (2 minutos) por ciclo de arrecadação/despesa
     secondsRemaining: number;
     autoTick: boolean;
     lastTickTimestamp: number;

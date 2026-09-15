@@ -11,6 +11,7 @@ import {
 } from './types/textGame';
 import {
   createInitialPrefeitoState,
+  sanitizePrefeitoState,
   startMunicipalDispatch,
   updateDispatchesClock,
   advanceMonthInSimulation,
@@ -58,7 +59,7 @@ export default function App() {
           if (user.state.cityName === 'Porto da Aliança') {
             user.state.cityName = user.cityName || 'Ratolândia';
           }
-          return user.state;
+          return sanitizePrefeitoState(user.state);
         }
         const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
         if (saved) {
@@ -66,7 +67,7 @@ export default function App() {
           if (parsed.cityName === 'Porto da Aliança') {
             parsed.cityName = 'Ratolândia';
           }
-          return parsed;
+          return sanitizePrefeitoState(parsed);
         }
       } catch (e) {
         console.error('Failed to load saved state:', e);
@@ -252,7 +253,10 @@ export default function App() {
     setCityState((prev) => {
       const next = advanceMonthInSimulation(prev);
       sounds.playCash();
-      showToast(`Mês de ${next.monthName} fechado! Balanço atualizado.`, 'success');
+      showToast(
+        `Ciclo fiscal liquidado! Saldo de R$ ${next.netMonthly >= 0 ? '+' : ''}${next.netMonthly.toLocaleString()} lançado no Tesouro.`,
+        'success'
+      );
 
       // If an emergency event was generated, open the emergency modal immediately!
       if (next.activeEmergencyEvent) {
@@ -299,7 +303,7 @@ export default function App() {
       sounds.playClick();
       showToast(
         updated.economicCycle.autoTick
-          ? 'Ciclo fiscal automático de 1 minuto reativado.'
+          ? 'Ciclo fiscal automático de 2 minutos reativado.'
           : 'Ciclo fiscal automático pausado.',
         'info'
       );

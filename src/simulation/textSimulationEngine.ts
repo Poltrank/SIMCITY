@@ -9,10 +9,97 @@ import {
 } from '../types/textGame';
 import { MUNICIPAL_ACTIONS } from '../data/municipalActions';
 
-const MONTH_NAMES = [
+export const MONTH_NAMES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
 ];
+
+export const GAME_START_DAY = 15;
+export const GAME_START_MONTH = 9; // Setembro
+export const GAME_START_YEAR = 2026;
+export const FISCAL_CYCLE_SECONDS = 120; // 2 minutos por ciclo fiscal
+export const REAL_MS_PER_IN_GAME_DAY = 24 * 60 * 60 * 1000; // 24 horas da vida real = 1 dia no jogo
+
+export function calculateInGameDate(
+  gameStartRealTimestamp: number,
+  currentRealTimestamp: number = Date.now()
+): {
+  day: number;
+  month: number;
+  monthName: string;
+  year: number;
+  termMonth: number;
+  daysPassed: number;
+  dateStr: string;
+} {
+  const elapsedMs = Math.max(0, currentRealTimestamp - gameStartRealTimestamp);
+  const daysPassed = Math.floor(elapsedMs / REAL_MS_PER_IN_GAME_DAY);
+
+  // Inicia especificamente no dia 15 de setembro de 2026 (mês 8 no Date 0-index do JS)
+  const date = new Date(GAME_START_YEAR, GAME_START_MONTH - 1, GAME_START_DAY + daysPassed);
+
+  const day = date.getDate();
+  const month = date.getMonth() + 1; // 1 a 12
+  const monthName = MONTH_NAMES[date.getMonth()];
+  const year = date.getFullYear();
+  const termMonth = Math.floor(daysPassed / 30) + 1;
+  const dateStr = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+
+  return {
+    day,
+    month,
+    monthName,
+    year,
+    termMonth,
+    daysPassed,
+    dateStr,
+  };
+}
+
+export function sanitizePrefeitoState(state: PrefeitoCityState): PrefeitoCityState {
+  if (!state) return createInitialPrefeitoState();
+
+  const now = Date.now();
+  let gameStart = state.gameStartRealTimestamp;
+  if (!gameStart || state.year < 2026 || (state.year === 2026 && state.month < 9)) {
+    gameStart = now;
+  }
+
+  const calendar = calculateInGameDate(gameStart, now);
+
+  const currentCycle = state.economicCycle || {
+    cycleDurationSeconds: FISCAL_CYCLE_SECONDS,
+    secondsRemaining: FISCAL_CYCLE_SECONDS,
+    autoTick: true,
+    lastTickTimestamp: now,
+    lastCycleNet: state.netMonthly || 0,
+    totalCyclesCompleted: 0,
+  };
+
+  let secondsRemaining = currentCycle.secondsRemaining;
+  if (
+    currentCycle.cycleDurationSeconds !== FISCAL_CYCLE_SECONDS ||
+    secondsRemaining > FISCAL_CYCLE_SECONDS ||
+    secondsRemaining <= 0
+  ) {
+    secondsRemaining = FISCAL_CYCLE_SECONDS;
+  }
+
+  return {
+    ...state,
+    day: calendar.day,
+    month: calendar.month,
+    monthName: calendar.monthName,
+    year: calendar.year,
+    termMonth: calendar.termMonth,
+    gameStartRealTimestamp: gameStart,
+    economicCycle: {
+      ...currentCycle,
+      cycleDurationSeconds: FISCAL_CYCLE_SECONDS,
+      secondsRemaining,
+    },
+  };
+}
 
 export interface InitialMayorSetup {
   mayorName?: string;
@@ -26,11 +113,11 @@ export function createInitialPrefeitoState(setup?: InitialMayorSetup): PrefeitoC
   const chosenParty = setup?.party?.trim() || 'PSD - Partido Social do Desenvolvimento';
   const chosenCityName = setup?.cityName?.trim() || 'Ratolândia';
 
-  const realNow = new Date();
-  const realYear = realNow.getFullYear();
-  const realMonth = realNow.getMonth() + 1;
-  const realMonthName = MONTH_NAMES[realNow.getMonth()];
-  const realDay = realNow.getDate();
+  // Jogo inicia no dia 15 de setembro de 2026
+  const startDay = GAME_START_DAY;
+  const startMonth = GAME_START_MONTH;
+  const startMonthName = 'Setembro';
+  const startYear = GAME_START_YEAR;
 
   const initialMinimumWage = 1412; // Salário mínimo / Piso municipal base
   const initialRevenue = 520000;
@@ -63,11 +150,12 @@ export function createInitialPrefeitoState(setup?: InitialMayorSetup): PrefeitoC
     cityName: chosenCityName,
     mayorName: chosenMayorName,
     party: chosenParty,
-    year: realYear,
-    month: realMonth,
-    monthName: realMonthName,
-    day: realDay,
-    termMonth: realMonth,
+    year: startYear,
+    month: startMonth,
+    monthName: startMonthName,
+    day: startDay,
+    termMonth: 1,
+    gameStartRealTimestamp: Date.now(),
     lastRealTimestamp: Date.now(),
     fractionalTreasuryAccrual: 0,
 
@@ -112,8 +200,8 @@ export function createInitialPrefeitoState(setup?: InitialMayorSetup): PrefeitoC
         title: `Posse Solene do Novo Mandato Municipal em ${chosenCityName}`,
         source: 'Diário Oficial',
         type: 'decreto',
-        dateStr: '01/01/2026',
-        body: `${chosenMayorName} (${chosenParty}) assumiu oficialmente o comando do Poder Executivo no Palácio Municipal de ${chosenCityName}. Em seu discurso de posse, garantiu austeridade fiscal, diálogo republicano com os vereadores e foco no bem-estar da população.`,
+        dateStr: '15/09/2026',
+        body: `${chosenMayorName} (${chosenParty}) assumiu oficialmente o comando do Poder Executivo no Palácio Municipal de ${chosenCityName}. Em seu discurso de posse no dia 15 de setembro de 2026, garantiu austeridade fiscal, diálogo republicano com os vereadores e foco no bem-estar da população.`,
         impactSummary: 'Gabinete aberto para despachos e propostas legislativas.',
         timestamp: Date.now() - 3600000,
       },
@@ -122,7 +210,7 @@ export function createInitialPrefeitoState(setup?: InitialMayorSetup): PrefeitoC
         title: 'Geólogos Apontam Potencial Mineral e Petróleo nas Bacias Regionais',
         source: 'Gazeta Municipal',
         type: 'noticia',
-        dateStr: '04/01/2026',
+        dateStr: '15/09/2026',
         body: 'Relatórios preliminares de universidades sugerem que o subsolo municipal pode abrigar veios de ouro nas serras e bolsões de petróleo na costa. Prefeito estuda abrir editais de prospecção técnica.',
         impactSummary: 'Setor de Recursos Naturais disponível para investimento.',
         timestamp: Date.now() - 1800000,
@@ -158,10 +246,10 @@ export function createInitialPrefeitoState(setup?: InitialMayorSetup): PrefeitoC
       },
     },
 
-    // Ciclo Econômico em Tempo Real (60 Segundos)
+    // Ciclo Econômico em Tempo Real (2 Minutos = 120 Segundos)
     economicCycle: {
-      cycleDurationSeconds: 60,
-      secondsRemaining: 60,
+      cycleDurationSeconds: FISCAL_CYCLE_SECONDS,
+      secondsRemaining: FISCAL_CYCLE_SECONDS,
       autoTick: true,
       lastTickTimestamp: Date.now(),
       lastCycleNet: initialRevenue - initialExpenses,
@@ -1181,9 +1269,10 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
 
 export function advanceMonthInSimulation(state: PrefeitoCityState): PrefeitoCityState {
   const recalculated = recalculateMunicipalFinances(state);
-  const nextMonth = recalculated.month === 12 ? 1 : recalculated.month + 1;
-  const nextYear = recalculated.month === 12 ? recalculated.year + 1 : recalculated.year;
-  const nextTermMonth = recalculated.termMonth + 1;
+  
+  const now = Date.now();
+  const gameStart = state.gameStartRealTimestamp || now;
+  const calendar = calculateInGameDate(gameStart, now);
 
   // Process loan installments
   const updatedLoans = (recalculated.intermunicipalLoans || []).map((loan) => {
@@ -1198,7 +1287,7 @@ export function advanceMonthInSimulation(state: PrefeitoCityState): PrefeitoCity
     return loan;
   });
 
-  // Monthly economic math: Arrecadação e Despesas creditadas/debitadas no Tesouro!
+  // Monthly/Cycle economic math: Arrecadação e Despesas creditadas/debitadas no Tesouro!
   const nextTreasury = recalculated.treasury + recalculated.netMonthly;
 
   // Recalculate LRF ratios
@@ -1216,33 +1305,37 @@ export function advanceMonthInSimulation(state: PrefeitoCityState): PrefeitoCity
     fiscalRating = 'D';
   }
 
+  const cycleCount = (recalculated.economicCycle?.totalCyclesCompleted || 0) + 1;
+
   // Notícia Oficial detalhada no Diário Oficial
   const isSuperavit = recalculated.netMonthly >= 0;
   const newArticle: GazetteArticle = {
-    id: 'gaz_month_' + Date.now(),
+    id: 'gaz_cycle_' + Date.now(),
     title: isSuperavit
-      ? `Fechamento Fiscal: Superávit de R$ ${recalculated.netMonthly.toLocaleString()} em ${recalculated.monthName}`
-      : `Alerta Orçamentário: Déficit de R$ ${Math.abs(recalculated.netMonthly).toLocaleString()} em ${recalculated.monthName}`,
+      ? `Fechamento Fiscal: Superávit de R$ ${recalculated.netMonthly.toLocaleString()} (Ciclo #${cycleCount})`
+      : `Alerta Orçamentário: Déficit de R$ ${Math.abs(recalculated.netMonthly).toLocaleString()} (Ciclo #${cycleCount})`,
     source: 'Diário Oficial',
     type: isSuperavit ? 'decreto' : 'alerta',
-    dateStr: `${String(nextMonth).padStart(2, '0')}/${nextYear}`,
-    body: `A Secretaria da Fazenda finalizou a apuração do ciclo municipal. Arrecadação total: R$ ${recalculated.monthlyRevenue.toLocaleString()} (IPTU: R$ ${recalculated.revenueBreakdown.iptu.toLocaleString()}, ISS: R$ ${recalculated.revenueBreakdown.iss.toLocaleString()}, FPM: R$ ${recalculated.revenueBreakdown.fpmIcms.toLocaleString()}, Multas: R$ ${recalculated.revenueBreakdown.multasTransito.toLocaleString()}${recalculated.oilRoyaltiesMonthly > 0 ? `, Royalties Petróleo: R$ ${recalculated.oilRoyaltiesMonthly.toLocaleString()}` : ''}). Despesas consolidadas: R$ ${recalculated.monthlyExpenses.toLocaleString()} (Folha Salarial: R$ ${recalculated.payrollExpense.toLocaleString()} - ${recalculated.payrollRatio}% da RCL, Custeio SUS & Escolas: R$ ${(recalculated.expenseBreakdown.saudeSus + recalculated.expenseBreakdown.educacaoMerenda).toLocaleString()}, Estatais: R$ ${recalculated.expenseBreakdown.subsidioEstatais.toLocaleString()}).`,
+    dateStr: calendar.dateStr,
+    body: `A Secretaria da Fazenda finalizou a apuração do ciclo municipal de 2 minutos em ${calendar.dateStr}. Arrecadação apurada: R$ ${recalculated.monthlyRevenue.toLocaleString()} (IPTU: R$ ${recalculated.revenueBreakdown.iptu.toLocaleString()}, ISS: R$ ${recalculated.revenueBreakdown.iss.toLocaleString()}, FPM: R$ ${recalculated.revenueBreakdown.fpmIcms.toLocaleString()}, Multas: R$ ${recalculated.revenueBreakdown.multasTransito.toLocaleString()}${recalculated.oilRoyaltiesMonthly > 0 ? `, Royalties: R$ ${recalculated.oilRoyaltiesMonthly.toLocaleString()}` : ''}). Despesas consolidadas: R$ ${recalculated.monthlyExpenses.toLocaleString()} (Folha Salarial: R$ ${recalculated.payrollExpense.toLocaleString()} - ${payrollRatio}% da RCL, Custeio SUS & Escolas: R$ ${(recalculated.expenseBreakdown.saudeSus + recalculated.expenseBreakdown.educacaoMerenda).toLocaleString()}, Estatais: R$ ${recalculated.expenseBreakdown.subsidioEstatais.toLocaleString()}). Saldo transferido ao Tesouro: ${isSuperavit ? '+' : '-'}R$ ${Math.abs(recalculated.netMonthly).toLocaleString()}.`,
     impactSummary: `Saldo transferido ao Tesouro: ${isSuperavit ? '+' : '-'}R$ ${Math.abs(recalculated.netMonthly).toLocaleString()} | CAPAG: ${fiscalRating}`,
     timestamp: Date.now(),
   };
 
   // Check if we should spawn an emergency event to keep mayor active
   let nextEmergency = recalculated.activeEmergencyEvent;
-  if (!nextEmergency && Math.random() < 0.45) {
+  if (!nextEmergency && Math.random() < 0.40) {
     nextEmergency = getRandomEmergencyPool(recalculated);
   }
 
   return {
     ...recalculated,
-    year: nextYear,
-    month: nextMonth,
-    monthName: MONTH_NAMES[nextMonth - 1],
-    termMonth: nextTermMonth,
+    year: calendar.year,
+    month: calendar.month,
+    monthName: calendar.monthName,
+    day: calendar.day,
+    termMonth: calendar.termMonth,
+    gameStartRealTimestamp: gameStart,
     treasury: nextTreasury,
     payrollRatio,
     debtRatio,
@@ -1251,12 +1344,41 @@ export function advanceMonthInSimulation(state: PrefeitoCityState): PrefeitoCity
     activeEmergencyEvent: nextEmergency,
     economicCycle: {
       ...recalculated.economicCycle,
-      secondsRemaining: recalculated.economicCycle.cycleDurationSeconds,
+      cycleDurationSeconds: FISCAL_CYCLE_SECONDS,
+      secondsRemaining: FISCAL_CYCLE_SECONDS,
       lastCycleNet: recalculated.netMonthly,
-      totalCyclesCompleted: recalculated.economicCycle.totalCyclesCompleted + 1,
+      totalCyclesCompleted: cycleCount,
       lastTickTimestamp: Date.now(),
     },
     gazetteFeed: [newArticle, ...recalculated.gazetteFeed].slice(0, 30),
+  };
+}
+
+export function advanceDayInSimulation(state: PrefeitoCityState): PrefeitoCityState {
+  const currentStart = state.gameStartRealTimestamp || Date.now();
+  const newStart = currentStart - REAL_MS_PER_IN_GAME_DAY;
+  const calendar = calculateInGameDate(newStart, Date.now());
+
+  const newArticle: GazetteArticle = {
+    id: 'gaz_day_' + Date.now(),
+    title: `Abertura do Expediente Municipal: ${calendar.day} de ${calendar.monthName} de ${calendar.year}`,
+    source: 'Diário Oficial',
+    type: 'decreto',
+    dateStr: calendar.dateStr,
+    body: `Início do novo dia de mandato no Palácio Municipal de ${state.cityName}. Gabinete do(a) Prefeito(a) ${state.mayorName} aberto para audiências públicas, despachos de secretários e tramitações de projetos.`,
+    impactSummary: `Dia ${calendar.daysPassed + 1} do Mandato • Exercício ${calendar.year}`,
+    timestamp: Date.now(),
+  };
+
+  return {
+    ...state,
+    gameStartRealTimestamp: newStart,
+    day: calendar.day,
+    month: calendar.month,
+    monthName: calendar.monthName,
+    year: calendar.year,
+    termMonth: calendar.termMonth,
+    gazetteFeed: [newArticle, ...state.gazetteFeed].slice(0, 30),
   };
 }
 
@@ -1268,26 +1390,67 @@ export function updateEconomicCycleTick(
   cycleCompleted: boolean;
   notification?: string;
 } {
-  if (!state.economicCycle || !state.economicCycle.autoTick) {
-    return { state, cycleCompleted: false };
+  const gameStart = state.gameStartRealTimestamp || now;
+  const calendar = calculateInGameDate(gameStart, now);
+
+  let baseState = state;
+  if (
+    state.day !== calendar.day ||
+    state.month !== calendar.month ||
+    state.year !== calendar.year ||
+    !state.gameStartRealTimestamp
+  ) {
+    baseState = {
+      ...state,
+      gameStartRealTimestamp: gameStart,
+      day: calendar.day,
+      month: calendar.month,
+      monthName: calendar.monthName,
+      year: calendar.year,
+      termMonth: calendar.termMonth,
+    };
   }
 
-  const lastTick = state.economicCycle.lastTickTimestamp || now;
+  const cycleDuration = FISCAL_CYCLE_SECONDS;
+  const currentCycle = baseState.economicCycle || {
+    cycleDurationSeconds: cycleDuration,
+    secondsRemaining: cycleDuration,
+    autoTick: true,
+    lastTickTimestamp: now,
+    lastCycleNet: baseState.netMonthly,
+    totalCyclesCompleted: 0,
+  };
+
+  if (!currentCycle.autoTick) {
+    return { state: baseState, cycleCompleted: false };
+  }
+
+  const lastTick = currentCycle.lastTickTimestamp || now;
   const elapsedSec = Math.floor((now - lastTick) / 1000);
 
   if (elapsedSec < 1) {
-    return { state, cycleCompleted: false };
+    return { state: baseState, cycleCompleted: false };
   }
 
-  const newSecondsRemaining = state.economicCycle.secondsRemaining - elapsedSec;
+  let adjustedRemaining = currentCycle.secondsRemaining;
+  if (
+    currentCycle.cycleDurationSeconds !== cycleDuration ||
+    adjustedRemaining > cycleDuration ||
+    adjustedRemaining <= 0
+  ) {
+    adjustedRemaining = Math.min(cycleDuration, adjustedRemaining > 0 ? adjustedRemaining : cycleDuration);
+  }
+
+  const newSecondsRemaining = adjustedRemaining - elapsedSec;
 
   if (newSecondsRemaining <= 0) {
-    // 1 MINUTE EXPIRED! EXECUTE RECOLHIMENTO FISCAL E PAGAMENTO DA FOLHA!
-    const advanced = advanceMonthInSimulation(state);
+    // 2 MINUTOS EXPIRADOS! EXECUTA FECHAMENTO FISCAL E FOLHA SALARIAL!
+    const advanced = advanceMonthInSimulation(baseState);
     const isSuperavit = advanced.netMonthly >= 0;
+    const cycleNum = advanced.economicCycle.totalCyclesCompleted;
     const notification = isSuperavit
-      ? `Ciclo de 1 minuto concluído: +R$ ${advanced.netMonthly.toLocaleString()} arrecadados do povo e governos!`
-      : `Ciclo de 1 minuto concluído: Déficit de -R$ ${Math.abs(advanced.netMonthly).toLocaleString()} pago pelo Tesouro.`;
+      ? `Ciclo fiscal #${cycleNum} (2 min): +R$ ${advanced.netMonthly.toLocaleString()} arrecadados no Tesouro!`
+      : `Ciclo fiscal #${cycleNum} (2 min): Déficit de -R$ ${Math.abs(advanced.netMonthly).toLocaleString()} liquidado pelo Tesouro.`;
 
     return {
       state: advanced,
@@ -1298,9 +1461,10 @@ export function updateEconomicCycleTick(
 
   return {
     state: {
-      ...state,
+      ...baseState,
       economicCycle: {
-        ...state.economicCycle,
+        ...currentCycle,
+        cycleDurationSeconds: cycleDuration,
         secondsRemaining: newSecondsRemaining,
         lastTickTimestamp: now,
       },

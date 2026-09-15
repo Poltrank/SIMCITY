@@ -49,7 +49,7 @@ export const OfficialGazetteView: React.FC<OfficialGazetteViewProps> = ({
               Próximo Fechamento
             </span>
             <span className="text-sm font-bold text-slate-200">
-              Balanço de {cityState.monthName}
+              {String(cityState.day || 15).padStart(2, '0')} de {cityState.monthName || 'Setembro'}
             </span>
           </div>
           <button
@@ -57,9 +57,10 @@ export const OfficialGazetteView: React.FC<OfficialGazetteViewProps> = ({
               sounds.playCash();
               onAdvanceMonth();
             }}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow-md transition-transform active:scale-95 flex items-center gap-1.5 whitespace-nowrap"
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow-md transition-transform active:scale-95 flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
+            title="Executar liquidação contábil do ciclo fiscal de 2 minutos agora"
           >
-            <span>Avançar Mês</span>
+            <span>Liquidar Ciclo Agora</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>

@@ -139,9 +139,11 @@ export const MayorTopBar: React.FC<MayorTopBarProps> = ({
           <Calendar className="w-4 h-4 text-sky-400" />
           <div>
             <span className="font-semibold text-slate-200">
-              {state.monthName} / {state.year}
+              {String(state.day || 15).padStart(2, '0')} de {state.monthName || 'Setembro'} de {state.year || 2026}
             </span>
-            <span className="text-[11px] text-amber-400/90 font-medium block">Mês {state.termMonth} • Mandato Contínuo</span>
+            <span className="text-[11px] text-amber-400/90 font-medium block">
+              Dia {state.day ? Math.max(1, ((state.year - 2026) * 365 + (state.month - 9) * 30 + (state.day - 15) + 1)) : 1} • 24h / dia
+            </span>
           </div>
         </div>
 
@@ -157,18 +159,18 @@ export const MayorTopBar: React.FC<MayorTopBarProps> = ({
           </div>
           <div className="hidden sm:block border-l border-slate-800 pl-3">
             <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
-              Balanço Mensal
+              Balanço Fiscal
             </span>
             <span
               className={`text-xs md:text-sm font-bold tabular-nums ${
                 state.netMonthly >= 0 ? 'text-emerald-400' : 'text-rose-400'
               }`}
             >
-              {state.netMonthly >= 0 ? '+' : ''}R$ {state.netMonthly.toLocaleString()}/min
+              {state.netMonthly >= 0 ? '+' : ''}R$ {state.netMonthly.toLocaleString()} / 2min
             </span>
           </div>
 
-          {/* Badge do Ciclo de 1 Minuto */}
+          {/* Badge do Ciclo de 2 Minutos */}
           {state.economicCycle && (
             <div
               className="border-l border-slate-800 pl-3 flex items-center gap-2 cursor-pointer"
@@ -176,13 +178,14 @@ export const MayorTopBar: React.FC<MayorTopBarProps> = ({
                 setActiveView('financas');
                 sounds.playClick();
               }}
-              title="Ciclo de arrecadação do povo e pagamentos da folha (ocorre a cada 1 minuto)"
+              title="Ciclo fiscal de arrecadação e pagamentos da folha (ocorre a cada 2 minutos)"
             >
               <Clock className="w-3.5 h-3.5 text-amber-400 animate-spin" style={{ animationDuration: '8s' }} />
               <div>
                 <span className="text-[9px] uppercase font-bold text-slate-500 block">Ciclo Fiscal</span>
                 <span className="text-xs font-mono font-bold text-amber-300">
-                  {state.economicCycle.secondsRemaining}s
+                  {Math.floor(state.economicCycle.secondsRemaining / 60)}:
+                  {String(state.economicCycle.secondsRemaining % 60).padStart(2, '0')}
                 </span>
               </div>
             </div>
