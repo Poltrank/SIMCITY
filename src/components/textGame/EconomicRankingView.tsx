@@ -91,11 +91,14 @@ export const EconomicRankingView: React.FC<EconomicRankingViewProps> = ({
       map.set(myEntry.cityName.toLowerCase() + '_mine', myEntry);
 
       serverList.forEach((entry) => {
-        map.set(entry.cityName.toLowerCase(), entry);
+        if (entry.cityName !== 'Porto da Aliança') {
+          map.set(entry.cityName.toLowerCase(), entry);
+        }
       });
 
       // Also merge active room mayors
       (Object.values(otherMayors) as RegionalMayorProfile[]).forEach((m) => {
+        if (m.cityName === 'Porto da Aliança') return;
         const isSelf = myPlayerId ? m.id === myPlayerId : m.name === cityState.mayorName;
         if (isSelf) return;
 

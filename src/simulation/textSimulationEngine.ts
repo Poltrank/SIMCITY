@@ -24,7 +24,7 @@ export interface InitialMayorSetup {
 export function createInitialPrefeitoState(setup?: InitialMayorSetup): PrefeitoCityState {
   const chosenMayorName = setup?.mayorName?.trim() || 'Prefeito Cássio';
   const chosenParty = setup?.party?.trim() || 'PSD - Partido Social do Desenvolvimento';
-  const chosenCityName = setup?.cityName?.trim() || 'Porto da Aliança';
+  const chosenCityName = setup?.cityName?.trim() || 'Ratolândia';
 
   const realNow = new Date();
   const realYear = realNow.getFullYear();

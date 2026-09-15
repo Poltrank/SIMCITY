@@ -8,7 +8,7 @@ import {
 } from '../types/textGame';
 
 // Shared global topic
-export const GLOBAL_WORLD_TOPIC = 'prefeito_sim_brasil_v2/mundo_ao_vivo';
+export const GLOBAL_WORLD_TOPIC = 'prefeito_sim_brasil_v3/mundo_ao_vivo';
 
 // 4 Dedicated Cloud Player Slots (each player writes exclusively to their own slot to eliminate race-conditions)
 export const DEDICATED_SLOTS = [
@@ -30,7 +30,8 @@ export interface WorldSyncPayload {
     | 'treaty_rejected'
     | 'direct_aid'
     | 'loan_proposed'
-    | 'loan_responded';
+    | 'loan_responded'
+    | 'ping_greeting';
   senderId: string;
   senderName?: string;
   senderCity?: string;
@@ -57,8 +58,8 @@ class GlobalWorldSyncService {
   private isConnected: boolean = false;
   private currentBrokerIndex: number = 0;
   private brokers: string[] = [
-    'wss://test.mosquitto.org:8081',
     'wss://broker.emqx.io:8084/mqtt',
+    'wss://test.mosquitto.org:8081',
   ];
 
   private localPlayerId: string = '';
@@ -84,20 +85,42 @@ class GlobalWorldSyncService {
   public setLocalPlayer(playerId: string, profile: RegionalMayorProfile) {
     this.localPlayerId = playerId;
     this.localProfile = profile;
+    this.determineDedicatedSlot();
+  }
+
+  private determineDedicatedSlot() {
+    const cleanId = (this.localPlayerId || '').toLowerCase();
+    const cleanName = (this.localProfile?.name || '').toLowerCase();
+
+    // Priority deterministic assignment to prevent collisions:
+    if (cleanId.includes('cassio') || cleanName.includes('cassio')) {
+      this.myAssignedSlotId = DEDICATED_SLOTS[0].id; // Slot 1 for Cássio
+    } else if (cleanId.includes('lais') || cleanName.includes('lais')) {
+      this.myAssignedSlotId = DEDICATED_SLOTS[1].id; // Slot 2 for Laís
+    }
+    if (typeof window !== 'undefined' && this.myAssignedSlotId) {
+      try {
+        localStorage.setItem('prefeito_assigned_slot_id', this.myAssignedSlotId);
+      } catch (e) {}
+    }
   }
 
   private startCloudPoller() {
     if (typeof window === 'undefined') return;
 
-    // Fast, persistent HTTPS polling every 1.5 seconds on standard port 443 with CORS
+    // Resilient HTTPS polling every 2.5 seconds to prevent rate-limiting
     this.cloudInterval = setInterval(() => {
       this.syncWithCloud();
-    }, 1500);
+    }, 2500);
 
     // Initial immediate sync
     setTimeout(() => {
       this.syncWithCloud();
     }, 200);
+  }
+
+  public syncNow() {
+    this.syncWithCloud();
   }
 
   public async syncWithCloud() {
@@ -106,6 +129,7 @@ class GlobalWorldSyncService {
 
     try {
       const now = Date.now();
+      this.determineDedicatedSlot();
 
       // 1. Fetch all 4 player slots in a single fast GET request
       const res = await fetch(ALL_SLOTS_URL, {
@@ -188,7 +212,21 @@ class GlobalWorldSyncService {
         const otherData = otherSlot.data;
         if (!otherData || !otherData.playerId || otherData.playerId === this.localPlayerId) continue;
 
-        const isOnline = otherData.lastSeen && now - otherData.lastSeen < 45000;
+        // FILTER GHOST ACCOUNTS:
+        // Ignore phantom test city "Porto da Aliança"
+        if (otherData.cityName === 'Porto da Aliança') continue;
+
+        // Ignore duplicate of self (e.g. if otherData has the same mayor name as local player)
+        if (
+          this.localProfile &&
+          otherData.mayorName &&
+          otherData.mayorName.toLowerCase().trim() === this.localProfile.name.toLowerCase().trim()
+        ) {
+          continue;
+        }
+
+        // Check if online with clock skew tolerance up to 3 minutes
+        const isOnline = otherData.lastSeen && (Math.abs(now - otherData.lastSeen) < 180000 || now - otherData.lastSeen < 180000);
         if (otherData.profile && isOnline) {
           const partnerProfile: RegionalMayorProfile = {
             ...otherData.profile,
@@ -221,7 +259,7 @@ class GlobalWorldSyncService {
         }
       }
     } catch (e) {
-      // Cloud sync failure will automatically retry on next tick (1.5s)
+      // Cloud sync failure will automatically retry on next tick
     } finally {
       this.isSyncingCloud = false;
     }

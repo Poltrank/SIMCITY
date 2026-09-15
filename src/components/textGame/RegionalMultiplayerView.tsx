@@ -18,6 +18,7 @@ import {
   Building,
   TrendingUp,
   Share2,
+  RefreshCw,
 } from 'lucide-react';
 import {
   PrefeitoCityState,
@@ -52,6 +53,8 @@ interface RegionalMultiplayerViewProps {
   onShareRoom?: () => void;
   onSendDirectAid?: (amount: number, category: 'financeira' | 'energia' | 'agua', note?: string) => void;
   onOpenLoansModal?: () => void;
+  onSendGreeting?: (targetMayorId?: string) => void;
+  onForceRefresh?: () => void;
 }
 
 export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = ({
@@ -70,23 +73,32 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
   onShareRoom,
   onSendDirectAid,
   onOpenLoansModal,
+  onSendGreeting,
+  onForceRefresh,
 }) => {
   const [inputRoom, setInputRoom] = useState(roomId);
   const [chatInput, setChatInput] = useState('');
   const [activeTab, setActiveTab] = useState<'cenario' | 'tratados' | 'chat'>('cenario');
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [aidFeedback, setAidFeedback] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Filter out self
+  // Filter out self and ghosts
   const allMayors = Object.values(otherMayors) as RegionalMayorProfile[];
   const isOther = (m: RegionalMayorProfile) => {
-    if (myPlayerId && m.id) return m.id !== myPlayerId;
+    if (!m) return false;
+    if (myPlayerId && m.id === myPlayerId) return false;
+    // Filter ghost test city
+    if (m.cityName === 'Porto da Aliança') return false;
+    // Filter duplicate copy of user's own mayor or city
+    if (cityState.mayorName && m.name && m.name.toLowerCase().trim() === cityState.mayorName.toLowerCase().trim()) return false;
+    if (cityState.cityName && m.cityName && m.cityName.toLowerCase().trim() === cityState.cityName.toLowerCase().trim()) return false;
     return true;
   };
 
   const realPartners = allMayors.filter((m) => m.isRealPlayer && isOther(m));
   const realPartner: RegionalMayorProfile | null = realPartners[0] || null;
-  const fictitiousMayors = allMayors.filter((m) => !m.isRealPlayer);
+  const fictitiousMayors = allMayors.filter((m) => !m.isRealPlayer && isOther(m));
 
   // Target mayor selection for treaties tab
   const [selectedTargetMayorId, setSelectedTargetMayorId] = useState<string>(
@@ -374,14 +386,28 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
                   </div>
 
                   {/* Ações Diretas com a Namorada / Parceiro */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-800">
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-2 border-t border-slate-800">
+                    <button
+                      onClick={() => {
+                        sounds.playClick();
+                        onSendGreeting?.(partner.id);
+                        setAidFeedback(`Saudação enviada ao vivo para ${partner.name}!`);
+                        setTimeout(() => setAidFeedback(null), 3000);
+                      }}
+                      className="px-2 py-1.5 bg-pink-600 hover:bg-pink-500 text-white font-bold text-xs rounded-lg transition-all shadow-sm flex items-center justify-center gap-1"
+                      title="Enviar cumprimento em tempo real para a prefeita"
+                    >
+                      <span>👋</span>
+                      <span>Cumprimentar</span>
+                    </button>
+
                     <button
                       onClick={() => {
                         sounds.playClick();
                         setSelectedTargetMayorId(partner.id);
                         setActiveTab('tratados');
                       }}
-                      className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg transition-all shadow-sm flex items-center justify-center gap-1"
+                      className="px-2 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg transition-all shadow-sm flex items-center justify-center gap-1"
                     >
                       <Handshake className="w-3.5 h-3.5" />
                       Propor Tratado
@@ -389,7 +415,7 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
 
                     <button
                       onClick={() => handleSendAidToPartner(partner, 50000)}
-                      className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold text-xs rounded-lg transition-all shadow-sm flex items-center justify-center gap-1"
+                      className="px-2 py-1.5 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold text-xs rounded-lg transition-all shadow-sm flex items-center justify-center gap-1"
                       title="Transferir R$ 50.000 do seu tesouro para a prefeitura dela"
                     >
                       <DollarSign className="w-3.5 h-3.5" />
@@ -401,7 +427,7 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
                         sounds.playClick();
                         onOpenLoansModal?.();
                       }}
-                      className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-lg transition-all shadow-sm flex items-center justify-center gap-1"
+                      className="px-2 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-lg transition-all shadow-sm flex items-center justify-center gap-1"
                     >
                       <Building className="w-3.5 h-3.5" />
                       Empréstimo
@@ -412,7 +438,7 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
                         sounds.playClick();
                         setActiveTab('chat');
                       }}
-                      className="px-2.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-lg transition-all shadow-sm flex items-center justify-center gap-1"
+                      className="px-2 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-lg transition-all shadow-sm flex items-center justify-center gap-1"
                     >
                       <MessageSquare className="w-3.5 h-3.5" />
                       Abrir Chat
@@ -429,11 +455,25 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
                   Aguardando Segundo Prefeito(a) no Brasil
                 </h4>
                 <p className="text-xs text-slate-300 max-w-md leading-relaxed">
-                  O servidor nacional já está ativo! Assim que sua namorada abrir o jogo no celular dela, a prefeitura dela conectará automaticamente neste mesmo mundo em tempo real.
+                  O servidor nacional está ativo! Assim que a Laís (ou outro celular) abrir o jogo e fizer login com o cadastro dela, a prefeitura conectará automaticamente neste mesmo mundo em tempo real.
                 </p>
-                <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-950/80 border border-emerald-500/50 rounded-full text-emerald-300 text-xs font-semibold">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                  Servidor Nacional Brasil Online — Aguardando Conexão
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                  <button
+                    onClick={() => {
+                      sounds.playClick();
+                      setIsRefreshing(true);
+                      onForceRefresh?.();
+                      setTimeout(() => setIsRefreshing(false), 1200);
+                    }}
+                    className="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 shadow transition-all"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                    <span>{isRefreshing ? 'Buscando...' : 'Sincronizar Agora'}</span>
+                  </button>
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-950/80 border border-emerald-500/50 rounded-lg text-emerald-300 text-xs font-semibold">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    Servidor Nacional Brasil Online
+                  </div>
                 </div>
               </div>
             )}

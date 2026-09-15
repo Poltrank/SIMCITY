@@ -136,22 +136,38 @@ export function useTextMultiplayer(
   const [isConnected, setIsConnected] = useState<boolean>(true);
   const [myRole, setMyRole] = useState<'mayor_north' | 'mayor_south' | 'spectator'>('mayor_north');
 
-  // Synchronously initialize player ID so it is never empty on first connect
+  // Synchronously initialize player ID based on authenticated user or unique ID
   const [myPlayerId, setMyPlayerId] = useState<string>(() => {
-    let pid = localStorage.getItem('prefeito_player_id');
+    try {
+      const cur = localStorage.getItem('prefeito_current_user_v2');
+      if (cur) {
+        const user = JSON.parse(cur);
+        if (user && user.username) {
+          return 'usr_' + user.username.toLowerCase().replace(/[^a-z0-9]/g, '');
+        }
+      }
+    } catch (e) {}
+    let pid = localStorage.getItem('prefeito_player_id_v2');
     if (!pid) {
-      pid = 'may_' + Math.random().toString(36).substr(2, 8);
-      localStorage.setItem('prefeito_player_id', pid);
+      pid = 'usr_' + Math.random().toString(36).substr(2, 8);
+      localStorage.setItem('prefeito_player_id_v2', pid);
     }
     return pid;
   });
 
   const [otherMayors, setOtherMayors] = useState<Record<string, RegionalMayorProfile>>(() => {
     try {
-      const saved = localStorage.getItem('prefeito_persisted_profiles');
+      const saved = localStorage.getItem('prefeito_persisted_profiles_v2');
       if (saved) {
         const parsed = JSON.parse(saved);
-        return mergeMayorsWithRealFirst(DEFAULT_NEIGHBORING_MAYORS, parsed);
+        // Filter out legacy ghost accounts
+        const cleaned: Record<string, RegionalMayorProfile> = {};
+        Object.entries(parsed).forEach(([k, v]: [string, any]) => {
+          if (v && v.cityName !== 'Porto da Aliança') {
+            cleaned[k] = v;
+          }
+        });
+        return mergeMayorsWithRealFirst(DEFAULT_NEIGHBORING_MAYORS, cleaned);
       }
     } catch (e) {}
     return DEFAULT_NEIGHBORING_MAYORS;
@@ -703,8 +719,16 @@ export function useTextMultiplayer(
   // Subscribe to Global Live World cloud sync (MQTT broker across all networks & devices)
   useEffect(() => {
     const unsubscribe = worldSync.subscribe((payload) => {
-      // Ignore messages from self
+      // Ignore messages from self or phantom/ghost accounts
       if (payload.senderId === myPlayerId) return;
+      if (payload.senderCity === 'Porto da Aliança' || payload.profile?.cityName === 'Porto da Aliança') return;
+      if (
+        cityStateRef.current.mayorName &&
+        payload.profile?.name &&
+        payload.profile.name.toLowerCase().trim() === cityStateRef.current.mayorName.toLowerCase().trim()
+      ) {
+        return;
+      }
 
       if (payload.type === 'heartbeat' && payload.profile) {
         setIsConnected(true);
@@ -714,9 +738,9 @@ export function useTextMultiplayer(
           try {
             const realOnes: Record<string, RegionalMayorProfile> = {};
             (Object.values(updated) as RegionalMayorProfile[]).forEach((m) => {
-              if (m.isRealPlayer) realOnes[m.id] = m;
+              if (m.isRealPlayer && m.cityName !== 'Porto da Aliança') realOnes[m.id] = m;
             });
-            localStorage.setItem('prefeito_persisted_profiles', JSON.stringify(realOnes));
+            localStorage.setItem('prefeito_persisted_profiles_v2', JSON.stringify(realOnes));
           } catch (e) {}
 
           if (prevPartnerIdRef.current !== partnerProfile.id) {
@@ -740,6 +764,25 @@ export function useTextMultiplayer(
           }
           return updated;
         });
+      }
+
+      if (payload.type === 'ping_greeting') {
+        try {
+          sounds.playCash();
+        } catch (e) {}
+        const greetNotif: NegotiationNotification = {
+          id: 'greet_' + Date.now(),
+          type: 'aid_received',
+          title: `👋 Saudação de ${payload.senderName || 'Prefeita(o)'}!`,
+          senderMayor: payload.senderName || 'Prefeita(o) Parceira(o)',
+          senderCity: payload.senderCity || 'Cidade Parceira',
+          senderRole: 'mayor_south',
+          message: `${payload.senderName} (${payload.senderCity}) enviou uma saudação oficial diplomática ao vivo! Conexão ativa em tempo real!`,
+          timestamp: Date.now(),
+          read: false,
+        };
+        setActiveAlertNotification(greetNotif);
+        setNotifications((n) => [greetNotif, ...n]);
       }
 
       if (payload.type === 'chat' && payload.message) {
@@ -1260,12 +1303,32 @@ export function useTextMultiplayer(
 
   // Identify connected real players (e.g. girlfriend, friend)
   const realPlayers: RegionalMayorProfile[] = (Object.values(otherMayors) as RegionalMayorProfile[]).filter(
-    (m: RegionalMayorProfile) => m.id !== myPlayerId && m.isRealPlayer
+    (m: RegionalMayorProfile) =>
+      m.id !== myPlayerId &&
+      m.isRealPlayer &&
+      m.cityName !== 'Porto da Aliança' &&
+      (!m.name || !cityState.mayorName || m.name.toLowerCase().trim() !== cityState.mayorName.toLowerCase().trim()) &&
+      (!m.cityName || !cityState.cityName || m.cityName.toLowerCase().trim() !== cityState.cityName.toLowerCase().trim())
   );
   const partnerMayor: RegionalMayorProfile | null = realPlayers.length > 0 ? realPlayers[0] : null;
   const isPartnerOnline = partnerMayor
-    ? partnerMayor.isOnline !== false && (!partnerMayor.lastUpdated || Date.now() - partnerMayor.lastUpdated < 120000)
+    ? partnerMayor.isOnline !== false && (!partnerMayor.lastUpdated || Date.now() - partnerMayor.lastUpdated < 180000)
     : false;
+
+  const sendPingGreeting = useCallback((targetMayorId?: string) => {
+    sounds.playCash();
+    worldSync.broadcast({
+      type: 'ping_greeting',
+      senderId: myPlayerId,
+      senderName: cityState.mayorName,
+      senderCity: cityState.cityName,
+    });
+  }, [myPlayerId, cityState.mayorName, cityState.cityName]);
+
+  const forceRefresh = useCallback(() => {
+    worldSync.syncNow();
+    sendHeartbeatHttp(roomId, myPlayerId);
+  }, [roomId, myPlayerId, sendHeartbeatHttp]);
 
   return {
     roomId,
@@ -1294,5 +1357,7 @@ export function useTextMultiplayer(
     proposeLoan,
     respondToLoan,
     shareRoomLink,
+    sendPingGreeting,
+    forceRefresh,
   };
 }

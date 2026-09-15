@@ -124,6 +124,79 @@ function getOrCreateRoom(roomId: string): RoomState {
   return rooms[cleanId];
 }
 
+// User Auth & Accounts
+const USERS_FILE = '/tmp/prefeito_users.json';
+let usersDb: Record<string, { username: string; password: string; mayorName: string; cityName: string; party: string; createdAt: number; lastLogin: number; state?: any }> = {};
+
+try {
+  if (fs.existsSync(USERS_FILE)) {
+    usersDb = JSON.parse(fs.readFileSync(USERS_FILE, 'utf-8'));
+  }
+} catch (e) {}
+
+function saveUsersDb() {
+  try {
+    fs.writeFileSync(USERS_FILE, JSON.stringify(usersDb, null, 2), 'utf-8');
+  } catch (e) {}
+}
+
+app.post('/api/auth/register', (req, res) => {
+  try {
+    const { username, password, mayorName, cityName, party, state } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Usuário e senha são obrigatórios' });
+    }
+    const cleanUser = String(username).trim().toLowerCase();
+    usersDb[cleanUser] = {
+      username: cleanUser,
+      password: String(password),
+      mayorName: String(mayorName || 'Prefeito'),
+      cityName: String(cityName || 'Município'),
+      party: String(party || 'PSD'),
+      createdAt: Date.now(),
+      lastLogin: Date.now(),
+      state,
+    };
+    saveUsersDb();
+    return res.json({ success: true, user: { username: cleanUser, mayorName, cityName, party } });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/auth/login', (req, res) => {
+  try {
+    const { username, password } = req.body;
+    const cleanUser = String(username || '').trim().toLowerCase();
+    const user = usersDb[cleanUser];
+    if (!user) {
+      return res.status(404).json({ error: 'Usuário não cadastrado' });
+    }
+    if (user.password !== String(password)) {
+      return res.status(401).json({ error: 'Senha incorreta' });
+    }
+    user.lastLogin = Date.now();
+    saveUsersDb();
+    return res.json({ success: true, user });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// Purge all old registrations, rooms, and state
+app.post('/api/auth/purge-all', (req, res) => {
+  try {
+    rooms = {};
+    usersDb = {};
+    try { fs.unlinkSync(ROOMS_FILE); } catch (e) {}
+    try { fs.unlinkSync(USERS_FILE); } catch (e) {}
+    Object.keys(savedGameStates).forEach((k) => delete savedGameStates[k]);
+    return res.json({ success: true, message: 'Todos os cadastros e dados anteriores foram excluídos com sucesso.' });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
 // Persistent Server-side Cloud Game Saves
 const savedGameStates: Record<string, { state: any; savedAt: number; cityName: string; mayorName: string }> = {};
 

@@ -44,6 +44,7 @@ import { EmergencyEventModal } from './components/textGame/EmergencyEventModal';
 import { NegotiationAlertBanner } from './components/textGame/NegotiationAlertBanner';
 import { MayorAuthModal } from './components/textGame/MayorAuthModal';
 import { MayorNegotiationsView } from './components/textGame/MayorNegotiationsView';
+import { getCurrentUser, updateCurrentUserState } from './utils/userAuth';
 
 const LOCAL_STORAGE_KEY = 'prefeito_game_state_v1';
 
@@ -52,15 +53,26 @@ export default function App() {
   const [cityState, setCityState] = useState<PrefeitoCityState>(() => {
     if (typeof window !== 'undefined') {
       try {
+        const user = getCurrentUser();
+        if (user && user.state) {
+          if (user.state.cityName === 'Porto da Aliança') {
+            user.state.cityName = user.cityName || 'Ratolândia';
+          }
+          return user.state;
+        }
         const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
         if (saved) {
-          return JSON.parse(saved);
+          const parsed = JSON.parse(saved);
+          if (parsed.cityName === 'Porto da Aliança') {
+            parsed.cityName = 'Ratolândia';
+          }
+          return parsed;
         }
       } catch (e) {
         console.error('Failed to load saved state:', e);
       }
     }
-    return createInitialPrefeitoState();
+    return createInitialPrefeitoState({ cityName: 'Ratolândia', mayorName: 'Cássio Kenji' });
   });
 
   const [activeView, setActiveView] = useState<'mesa' | 'secretarias' | 'politicas' | 'gazeta' | 'financas' | 'regional' | 'ranking' | 'negociar'>('mesa');
@@ -69,8 +81,8 @@ export default function App() {
   const [isEmergencyModalOpen, setIsEmergencyModalOpen] = useState<boolean>(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
-      const hasIdentified = localStorage.getItem('prefeito_identified_mayor_v1');
-      return !hasIdentified;
+      const user = getCurrentUser();
+      return !user;
     }
     return false;
   });
@@ -80,10 +92,8 @@ export default function App() {
 
   const handleSelectMayorProfile = (newState: PrefeitoCityState, _profileId: string) => {
     setCityState(newState);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('prefeito_identified_mayor_v1', 'true');
-    }
-    showToast(`Gabinete empossado: Prefeito ${newState.mayorName} (${newState.party})`, 'success');
+    updateCurrentUserState(newState);
+    showToast(`Gabinete empossado: ${newState.mayorName} (${newState.cityName})`, 'success');
   };
 
   // Multiplayer Hook with Loan events
@@ -545,6 +555,8 @@ export default function App() {
             onShareRoom={multiplayer.shareRoomLink}
             onSendDirectAid={multiplayer.sendDirectAid}
             onOpenLoansModal={() => setIsLoansModalOpen(true)}
+            onSendGreeting={multiplayer.sendPingGreeting}
+            onForceRefresh={multiplayer.forceRefresh}
           />
         )}
 

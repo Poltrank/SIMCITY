@@ -73,8 +73,12 @@ export const MayorNegotiationsView: React.FC<MayorNegotiationsViewProps> = ({
 }) => {
   const rawList = (Object.values(otherMayors) as RegionalMayorProfile[]).filter(
     (m: RegionalMayorProfile) => {
-      if (myPlayerId && m.id) return m.id !== myPlayerId;
-      return m.name !== cityState.mayorName || m.cityName !== cityState.cityName;
+      if (!m) return false;
+      if (myPlayerId && m.id === myPlayerId) return false;
+      if (m.cityName === 'Porto da Aliança') return false;
+      if (cityState.mayorName && m.name && m.name.toLowerCase().trim() === cityState.mayorName.toLowerCase().trim()) return false;
+      if (cityState.cityName && m.cityName && m.cityName.toLowerCase().trim() === cityState.cityName.toLowerCase().trim()) return false;
+      return true;
     }
   );
   // Sort so real players (e.g. girlfriend / partner) appear first!
