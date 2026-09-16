@@ -149,6 +149,28 @@ export interface PrefeitoCityState {
   energySurplusMw: number; // Excedente disponível para exportação regional
   waterCoveragePercent: number; // % saneamento e água tratada
 
+  // Serviços Essenciais, Habitação & Conectividade (Telecomunicações)
+  gasCoveragePercent: number; // % de acesso a gás canalizado e GLP estável
+  gasDistributionKm: number; // km de rede de distribuição de gás canalizado
+  telecomGeneration: '2G' | '3G' | '4G' | '5G'; // Nível de rede móvel (2G, 3G, 4G ou 5G)
+  telecomCoveragePercent: number; // % do território com cobertura celular
+  fiberCoveragePercent: number; // % de cobertura de fibra óptica residencial e industrial
+  housingUnits: number; // Total de moradias / unidades habitacionais existentes
+  housingDeficit: number; // Déficit habitacional (famílias sem teto ou coabitação)
+  housingOccupancyRate: number; // % de moradias ocupadas (0 a 100%)
+  
+  // Dinâmica Populacional Estilo SimCity (Migração)
+  monthlyMigration: number; // Saldo migratório líquido do ciclo (+ imigrantes / - emigrantes)
+  migrationReasons: { factor: string; impact: number; positive: boolean }[];
+  cityAttractiveness: number; // Atratividade geral da cidade (0 a 100)
+
+  // Atração de Empresas & Investimentos Privados
+  corporateOffers: CorporateOffer[];
+  installedCompanies: CorporateOffer[];
+
+  // Destinação Estratégica de Petróleo, Ouro & Minérios
+  naturalResourcesStrategy: NaturalResourcesStrategy;
+
   // Índices Municipais
   securityIndex: number; // 0 a 100
   healthIndex: number; // 0 a 100
@@ -449,4 +471,51 @@ export interface NegotiationNotification {
   installments?: number;
   timestamp: number;
   read: boolean;
+}
+
+// Políticas Estratégicas de Petróleo e Minérios
+export type OilDestinationPolicy = 'export_crude' | 'local_refinery_consumption' | 'sovereign_wealth_fund';
+export type GoldDestinationPolicy = 'sell_bullion_cash' | 'industrial_tech_jewelry' | 'strategic_reserve';
+
+export interface NaturalResourcesStrategy {
+  oilPolicy: OilDestinationPolicy;
+  goldPolicy: GoldDestinationPolicy;
+  sovereignFundBalance: number; // Saldo do Fundo Soberano Municipal do Petróleo em R$
+  sovereignFundMonthlyYield: number; // Rendimento mensal gerado pelo fundo (dividendos)
+  goldReserveKg: number; // Barras de ouro no cofre municipal como lastro
+  fuelDiscountActive: boolean; // Se a refinaria local barateia combustível (-30% em despesas com frota)
+  gasDiscountPercent: number; // Desconto no botijão e gás canalizado
+}
+
+// Propostas de Empresas Querendo se Instalar na Cidade (Atração de Investimentos)
+export interface CorporateOffer {
+  id: string;
+  companyName: string;
+  segment: 'telecom' | 'industria' | 'tecnologia' | 'logistica' | 'alimentos' | 'farmaceutica' | 'energia';
+  tagline: string;
+  description: string;
+  badge: string;
+  requirements: {
+    minTelecom?: '2G' | '3G' | '4G' | '5G';
+    minEnergyMw?: number;
+    minWaterCoverage?: number;
+    minEducationIndex?: number;
+    minInfrastructureIndex?: number;
+    minSecurityIndex?: number;
+  };
+  incentivesRequested: {
+    taxExemptionYears?: number; // Anos de isenção de IPTU/ISS
+    landDonationCost?: number; // Custo de terraplanagem / distrito industrial (R$)
+    conditionDescription: string;
+  };
+  benefits: {
+    jobsCreated: number;
+    monthlyTaxGain: number; // Ganho mensal em ISS / ICMS
+    upgradeTelecom?: '2G' | '3G' | '4G' | '5G'; // Ex: Operadora trazendo 4G ou 5G!
+    additionalEnergyMw?: number;
+    attractivenessBoost: number;
+    techIndexBoost?: number;
+  };
+  status: 'pending' | 'accepted' | 'declined';
+  receivedDateStr: string;
 }

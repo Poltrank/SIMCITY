@@ -43,6 +43,7 @@ import { EconomicRankingView } from './components/textGame/EconomicRankingView';
 import { IntermunicipalLoansModal } from './components/textGame/IntermunicipalLoansModal';
 import { EmergencyEventModal } from './components/textGame/EmergencyEventModal';
 import { NegotiationAlertBanner } from './components/textGame/NegotiationAlertBanner';
+import { CityGeneralStatsView } from './components/textGame/CityGeneralStatsView';
 import { MayorAuthModal } from './components/textGame/MayorAuthModal';
 import { MayorNegotiationsView } from './components/textGame/MayorNegotiationsView';
 import { getCurrentUser, updateCurrentUserState } from './utils/userAuth';
@@ -76,7 +77,7 @@ export default function App() {
     return createInitialPrefeitoState({ cityName: 'Ratolândia', mayorName: 'Cássio Kenji' });
   });
 
-  const [activeView, setActiveView] = useState<'mesa' | 'secretarias' | 'politicas' | 'gazeta' | 'financas' | 'regional' | 'ranking' | 'negociar'>('mesa');
+  const [activeView, setActiveView] = useState<'mesa' | 'secretarias' | 'politicas' | 'gazeta' | 'financas' | 'regional' | 'ranking' | 'negociar' | 'estatisticas'>('mesa');
   const [activeModalOutcome, setActiveModalOutcome] = useState<DispatchOutcome | null>(null);
   const [isLoansModalOpen, setIsLoansModalOpen] = useState<boolean>(false);
   const [isEmergencyModalOpen, setIsEmergencyModalOpen] = useState<boolean>(false);
@@ -510,6 +511,17 @@ export default function App() {
             cityState={cityState}
             onDispatchAction={handleDispatchAction}
             activeDispatchesIds={activeDispatchesIds}
+          />
+        )}
+
+        {activeView === 'estatisticas' && (
+          <CityGeneralStatsView
+            cityState={cityState}
+            onUpdateState={(newState) => {
+              setCityState(newState);
+              updateCurrentUserState(newState);
+            }}
+            onShowToast={showToast}
           />
         )}
 

@@ -26,14 +26,15 @@ import {
   LogIn,
   User,
   Handshake,
+  Activity,
 } from 'lucide-react';
 import { PrefeitoCityState } from '../../types/textGame';
 import { sounds } from '../../audio/soundManager';
 
 interface MayorTopBarProps {
   state: PrefeitoCityState;
-  activeView: 'mesa' | 'secretarias' | 'politicas' | 'gazeta' | 'financas' | 'regional' | 'ranking' | 'negociar';
-  setActiveView: (view: 'mesa' | 'secretarias' | 'politicas' | 'gazeta' | 'financas' | 'regional' | 'ranking' | 'negociar') => void;
+  activeView: 'mesa' | 'secretarias' | 'politicas' | 'gazeta' | 'financas' | 'regional' | 'ranking' | 'negociar' | 'estatisticas';
+  setActiveView: (view: 'mesa' | 'secretarias' | 'politicas' | 'gazeta' | 'financas' | 'regional' | 'ranking' | 'negociar' | 'estatisticas') => void;
   isMuted: boolean;
   toggleMute: () => void;
   isMultiplayerConnected: boolean;
@@ -328,6 +329,26 @@ export const MayorTopBar: React.FC<MayorTopBarProps> = ({
             {pendingDispatchesCount > 0 && (
               <span className="px-1.5 py-0.2 text-[10px] font-black rounded-full bg-rose-600 text-white animate-pulse">
                 {pendingDispatchesCount} em andamento (1 min)
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveView('estatisticas');
+              sounds.playClick();
+            }}
+            className={`px-3 py-2 rounded-md text-xs md:text-sm font-semibold flex items-center gap-2 transition-all whitespace-nowrap ${
+              activeView === 'estatisticas'
+                ? 'bg-amber-500 text-slate-950 shadow-md font-bold'
+                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <Activity className="w-4 h-4" />
+            Estatísticas Gerais & SimCity
+            {(state.corporateOffers || []).length > 0 && (
+              <span className="px-1.5 py-0.2 text-[10px] font-black rounded-full bg-emerald-500 text-slate-950">
+                {(state.corporateOffers || []).length}
               </span>
             )}
           </button>

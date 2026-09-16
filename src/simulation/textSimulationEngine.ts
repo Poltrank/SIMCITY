@@ -6,6 +6,10 @@ import {
   FiscalRating,
   MunicipalEmergencyEvent,
   IntermunicipalLoan,
+  CorporateOffer,
+  OilDestinationPolicy,
+  GoldDestinationPolicy,
+  NaturalResourcesStrategy,
 } from '../types/textGame';
 import { MUNICIPAL_ACTIONS } from '../data/municipalActions';
 
@@ -19,6 +23,190 @@ export const GAME_START_MONTH = 9; // Setembro
 export const GAME_START_YEAR = 2026;
 export const FISCAL_CYCLE_SECONDS = 45; // 45 segundos por ciclo fiscal
 export const REAL_MS_PER_IN_GAME_DAY = 24 * 60 * 60 * 1000; // 24 horas da vida real = 1 dia no jogo
+
+export const INITIAL_CORPORATE_OFFERS: CorporateOffer[] = [
+  {
+    id: 'off_telsul_4g',
+    companyName: 'TeleSul Conectividade & Torres',
+    segment: 'telecom',
+    tagline: 'Expansão de Telefonia Móvel & Banda Larga 4G LTE',
+    description:
+      'A operadora propõe implantar 14 novas antenas ERB e cabeamento subterrâneo, modernizando a cidade com sinal 4G de alta velocidade em todos os distritos urbanos e rurais.',
+    badge: '📡 Telecom 4G',
+    requirements: {
+      minEnergyMw: 5,
+      minInfrastructureIndex: 50,
+    },
+    incentivesRequested: {
+      taxExemptionYears: 2,
+      landDonationCost: 65000,
+      conditionDescription: 'Isenção de taxas de ocupação de solo e alvará para passagem de cabos em vias públicas.',
+    },
+    benefits: {
+      jobsCreated: 520,
+      monthlyTaxGain: 62000,
+      upgradeTelecom: '4G',
+      techIndexBoost: 12,
+      attractivenessBoost: 14,
+    },
+    status: 'pending',
+    receivedDateStr: '15/09/2026',
+  },
+  {
+    id: 'off_omni_5g',
+    companyName: 'OmniFiber & Antenas 5G Brasil',
+    segment: 'telecom',
+    tagline: 'Anel Óptico Metropolitano & Cobertura 5G Standalone',
+    description:
+      'Consórcio de telecomunicações deseja transformar o município em referência de Cidade Inteligente (Smart City), instalando microcélulas 5G e fibra óptica gigabit nos bairros.',
+    badge: '🚀 Telecom 5G',
+    requirements: {
+      minTelecom: '4G',
+      minEnergyMw: 10,
+      minEducationIndex: 55,
+      minInfrastructureIndex: 55,
+    },
+    incentivesRequested: {
+      taxExemptionYears: 3,
+      landDonationCost: 140000,
+      conditionDescription: 'Permissão para fixar microantenas 5G em postes de semáforos e prédios públicos.',
+    },
+    benefits: {
+      jobsCreated: 1350,
+      monthlyTaxGain: 145000,
+      upgradeTelecom: '5G',
+      techIndexBoost: 25,
+      attractivenessBoost: 22,
+    },
+    status: 'pending',
+    receivedDateStr: '16/09/2026',
+  },
+  {
+    id: 'off_agrovalle_alimentos',
+    companyName: 'AgroValle Beneficiamento de Alimentos',
+    segment: 'alimentos',
+    tagline: 'Fábrica de Processamento de Soja, Leite e Derivados',
+    description:
+      'Empresa do agronegócio planeja construir silos e linha de envase no anel viário, integrando pequenos produtores rurais da região com a rede de supermercados.',
+    badge: '🌾 Agroindústria',
+    requirements: {
+      minEnergyMw: 7,
+      minWaterCoverage: 60,
+    },
+    incentivesRequested: {
+      landDonationCost: 110000,
+      conditionDescription: 'Terraplanagem do terreno de 40.000m² no distrito agroindustrial.',
+    },
+    benefits: {
+      jobsCreated: 1850,
+      monthlyTaxGain: 195000,
+      attractivenessBoost: 8,
+    },
+    status: 'pending',
+    receivedDateStr: '15/09/2026',
+  },
+  {
+    id: 'off_eletrobus_brasil',
+    companyName: 'AutoMobilis EletroBus do Brasil',
+    segment: 'industria',
+    tagline: 'Linha de Montagem de Ônibus Elétricos e Tratores Urbanos',
+    description:
+      'Multinacional quer abrir polo fabril para produção de chassis e baterias elétricas para abastecer frotas metropolitanas, gerando milhares de empregos industriais.',
+    badge: '⚡ Indústria Pesada',
+    requirements: {
+      minTelecom: '4G',
+      minEnergyMw: 14,
+      minWaterCoverage: 70,
+      minInfrastructureIndex: 58,
+    },
+    incentivesRequested: {
+      taxExemptionYears: 4,
+      landDonationCost: 280000,
+      conditionDescription: 'Doação de lote industrial de 80.000m² com ramal asfaltado e subestação.',
+    },
+    benefits: {
+      jobsCreated: 3400,
+      monthlyTaxGain: 385000,
+      attractivenessBoost: 18,
+    },
+    status: 'pending',
+    receivedDateStr: '17/09/2026',
+  },
+  {
+    id: 'off_datacenter_verde',
+    companyName: 'GreenCloud Data Center & IA',
+    segment: 'tecnologia',
+    tagline: 'Centro de Processamento em Nuvem e Servidores de Inteligência Artificial',
+    description:
+      'Companhia de tecnologia da informação busca área com alta confiabilidade elétrica e telecom 5G para instalar data center de IA de baixo impacto de carbono.',
+    badge: '💻 Data Center & IA',
+    requirements: {
+      minTelecom: '5G',
+      minEnergyMw: 18,
+      minEducationIndex: 65,
+    },
+    incentivesRequested: {
+      taxExemptionYears: 3,
+      landDonationCost: 180000,
+      conditionDescription: 'Tarifa incentivada de energia e conexão subterrânea de fibra óptica dedicada.',
+    },
+    benefits: {
+      jobsCreated: 820,
+      monthlyTaxGain: 310000,
+      techIndexBoost: 22,
+      attractivenessBoost: 16,
+    },
+    status: 'pending',
+    receivedDateStr: '18/09/2026',
+  },
+  {
+    id: 'off_gassul_redes',
+    companyName: 'GásSul Distribuidora de Gás Natural',
+    segment: 'energia',
+    tagline: 'Expansão da Rede de Gás Canalizado Urbano & Industrial',
+    description:
+      'Concessionária propõe implantar tubulação subterrânea de gás natural para indústrias, comércios e edifícios, barateando a matriz térmica da cidade em 35%.',
+    badge: '🔥 Gás Canalizado',
+    requirements: {
+      minInfrastructureIndex: 52,
+    },
+    incentivesRequested: {
+      conditionDescription: 'Licença ambiental desburocratizada para abertura de valas viárias.',
+    },
+    benefits: {
+      jobsCreated: 680,
+      monthlyTaxGain: 85000,
+      attractivenessBoost: 12,
+    },
+    status: 'pending',
+    receivedDateStr: '15/09/2026',
+  },
+  {
+    id: 'off_biopharma_labs',
+    companyName: 'BioPharma Medicamentos & Vacinas',
+    segment: 'farmaceutica',
+    tagline: 'Laboratório de Produção de Fármacos e Genéricos',
+    description:
+      'Laboratório farmacêutico planeja instalar fábrica para abastecer hospitais e farmácias regionais, atraindo biólogos, químicos e técnicos qualificados.',
+    badge: '💊 Farmacêutica',
+    requirements: {
+      minTelecom: '4G',
+      minWaterCoverage: 75,
+      minEducationIndex: 60,
+    },
+    incentivesRequested: {
+      landDonationCost: 150000,
+      conditionDescription: 'Apoio na estação de tratamento de efluentes e terraplanagem.',
+    },
+    benefits: {
+      jobsCreated: 1450,
+      monthlyTaxGain: 240000,
+      attractivenessBoost: 14,
+    },
+    status: 'pending',
+    receivedDateStr: '19/09/2026',
+  },
+];
 
 export function calculateInGameDate(
   gameStartRealTimestamp: number,
@@ -93,6 +281,51 @@ export function sanitizePrefeitoState(state: PrefeitoCityState): PrefeitoCitySta
     year: calendar.year,
     termMonth: calendar.termMonth,
     gameStartRealTimestamp: gameStart,
+    // Serviços, Moradia e Telecomunicações
+    gasCoveragePercent: state.gasCoveragePercent ?? 42,
+    gasDistributionKm: state.gasDistributionKm ?? 38,
+    telecomGeneration: state.telecomGeneration ?? '3G',
+    telecomCoveragePercent: state.telecomCoveragePercent ?? 74,
+    fiberCoveragePercent: state.fiberCoveragePercent ?? 32,
+    housingUnits: state.housingUnits ?? 16800,
+    housingDeficit: state.housingDeficit ?? 1200,
+    housingOccupancyRate: state.housingOccupancyRate ?? 96,
+    monthlyMigration: state.monthlyMigration ?? 280,
+    migrationReasons: state.migrationReasons ?? [
+      { factor: 'Oferta de empregos no comércio e serviços', impact: 180, positive: true },
+      { factor: 'Custo de vida acessível e moradia estável', impact: 140, positive: true },
+      { factor: 'Sinal 3G instável em bairros periféricos', impact: -40, positive: false },
+    ],
+    cityAttractiveness: state.cityAttractiveness ?? 68,
+    corporateOffers: state.corporateOffers && state.corporateOffers.length > 0 ? state.corporateOffers : INITIAL_CORPORATE_OFFERS,
+    installedCompanies: state.installedCompanies ?? [
+      {
+        id: 'comp_logistica_local',
+        companyName: 'Armazéns Gerais & Logística Porto',
+        segment: 'logistica',
+        tagline: 'Entreposto de Cargas & Armazenamento',
+        description: 'Centro de distribuição regional e armazenamento de grãos e produtos manufaturados.',
+        badge: '📦 Logística',
+        requirements: {},
+        incentivesRequested: { conditionDescription: 'Galpão no antigo pátio ferroviário com isenção provisória de IPTU' },
+        benefits: {
+          jobsCreated: 850,
+          monthlyTaxGain: 48000,
+          attractivenessBoost: 4,
+        },
+        status: 'accepted',
+        receivedDateStr: '15/09/2026',
+      },
+    ],
+    naturalResourcesStrategy: state.naturalResourcesStrategy ?? {
+      oilPolicy: 'export_crude',
+      goldPolicy: 'sell_bullion_cash',
+      sovereignFundBalance: 0,
+      sovereignFundMonthlyYield: 0,
+      goldReserveKg: 0,
+      fuelDiscountActive: false,
+      gasDiscountPercent: 0,
+    },
     economicCycle: {
       ...currentCycle,
       cycleDurationSeconds: FISCAL_CYCLE_SECONDS,
@@ -198,6 +431,58 @@ export function createInitialPrefeitoState(setup?: InitialMayorSetup): PrefeitoC
     energyConsumptionMw: 38,
     energySurplusMw: 7,
     waterCoveragePercent: 68,
+
+    // Serviços Essenciais, Habitação & Telecomunicações (Conectividade)
+    gasCoveragePercent: 42,
+    gasDistributionKm: 38,
+    telecomGeneration: '3G',
+    telecomCoveragePercent: 74,
+    fiberCoveragePercent: 32,
+    housingUnits: 16800,
+    housingDeficit: 1200,
+    housingOccupancyRate: 96,
+
+    // Dinâmica Populacional Estilo SimCity (Migração)
+    monthlyMigration: 280,
+    migrationReasons: [
+      { factor: 'Oferta de empregos no comércio e serviços', impact: 180, positive: true },
+      { factor: 'Custo de vida acessível e aluguel estável', impact: 140, positive: true },
+      { factor: 'Sinal 3G oscilante na periferia', impact: -40, positive: false },
+    ],
+    cityAttractiveness: 68,
+
+    // Atração de Empresas & Investimentos Privados
+    corporateOffers: INITIAL_CORPORATE_OFFERS,
+    installedCompanies: [
+      {
+        id: 'comp_logistica_local',
+        companyName: 'Armazéns Gerais & Logística Porto',
+        segment: 'logistica',
+        tagline: 'Entreposto de Cargas & Armazenamento',
+        description: 'Centro de distribuição regional e armazenamento de grãos e produtos manufaturados.',
+        badge: '📦 Logística',
+        requirements: {},
+        incentivesRequested: { conditionDescription: 'Galpão no antigo pátio ferroviário com isenção provisória de IPTU' },
+        benefits: {
+          jobsCreated: 850,
+          monthlyTaxGain: 48000,
+          attractivenessBoost: 4,
+        },
+        status: 'accepted',
+        receivedDateStr: '15/09/2026',
+      },
+    ],
+
+    // Destinação Estratégica de Petróleo & Ouro
+    naturalResourcesStrategy: {
+      oilPolicy: 'export_crude',
+      goldPolicy: 'sell_bullion_cash',
+      sovereignFundBalance: 0,
+      sovereignFundMonthlyYield: 0,
+      goldReserveKg: 0,
+      fuelDiscountActive: false,
+      gasDiscountPercent: 0,
+    },
 
     securityIndex: 60,
     healthIndex: 55,
@@ -1087,6 +1372,160 @@ function resolveDispatchOutcome(
   }
 }
 
+export function calculateSimCityDynamics(state: PrefeitoCityState): {
+  newPopulation: number;
+  netMigration: number;
+  reasons: { factor: string; impact: number; positive: boolean }[];
+  attractiveness: number;
+  newEmployed: number;
+  newUnemploymentRate: number;
+  newHousingUnits: number;
+  newHousingDeficit: number;
+  newHousingOccupancyRate: number;
+} {
+  const reasons: { factor: string; impact: number; positive: boolean }[] = [];
+
+  // 1. Emprego e Mercado de Trabalho
+  const unemp = state.unemploymentRate || 8.5;
+  if (unemp < 5.0) {
+    const impact = 380;
+    reasons.push({ factor: 'Polo de empregos aquecido (desemprego abaixo de 5%)', impact, positive: true });
+  } else if (unemp < 7.5) {
+    const impact = 220;
+    reasons.push({ factor: 'Mercado de trabalho dinâmico e vagas disponíveis', impact, positive: true });
+  } else if (unemp <= 10.0) {
+    const impact = 70;
+    reasons.push({ factor: 'Equilíbrio no comércio e serviços locais', impact, positive: true });
+  } else if (unemp <= 14.0) {
+    const impact = -180;
+    reasons.push({ factor: 'Escassez de vagas no comércio formal', impact, positive: false });
+  } else {
+    const impact = -450;
+    reasons.push({ factor: 'Crise severa de desemprego (famílias buscam outras cidades)', impact, positive: false });
+  }
+
+  // 2. Habitação & Custo de Moradia
+  const familyCount = Math.round(state.population / 2.9);
+  const units = state.housingUnits || 16800;
+  const currentDeficit = Math.max(0, familyCount - units);
+  if (currentDeficit === 0) {
+    const impact = 240;
+    reasons.push({ factor: 'Oferta farta de moradias com aluguéis acessíveis', impact, positive: true });
+  } else if (currentDeficit < 800) {
+    const impact = 80;
+    reasons.push({ factor: 'Mercado imobiliário equilibrado', impact, positive: true });
+  } else if (currentDeficit < 2000) {
+    const impact = -150;
+    reasons.push({ factor: 'Déficit habitacional e aumento nos preços dos aluguéis', impact, positive: false });
+  } else {
+    const impact = -320;
+    reasons.push({ factor: 'Crise de moradia e falta de loteamentos populares', impact, positive: false });
+  }
+
+  // 3. Segurança Pública
+  const sec = state.securityIndex || 60;
+  if (sec >= 72) {
+    const impact = 210;
+    reasons.push({ factor: 'Bairros seguros e presença ostensiva da Guarda', impact, positive: true });
+  } else if (sec < 45) {
+    const impact = -310;
+    reasons.push({ factor: 'Sensação de insegurança e criminalidade nos bairros', impact, positive: false });
+  }
+
+  // 4. Educação & Saúde
+  const edu = state.educationIndex || 64;
+  const health = state.healthIndex || 55;
+  if (edu >= 68 && health >= 65) {
+    const impact = 200;
+    reasons.push({ factor: 'Rede escolar bem avaliada e atendimento ágil no SUS', impact, positive: true });
+  } else if (edu < 48 || health < 48) {
+    const impact = -220;
+    reasons.push({ factor: 'Filas nos postos de saúde e falta de vagas em creches', impact, positive: false });
+  }
+
+  // 5. Energia, Água & Gás
+  if (state.energySurplusMw < 0) {
+    const impact = -400;
+    reasons.push({ factor: 'Risco iminente de apagões na rede elétrica', impact, positive: false });
+  } else if (state.energySurplusMw >= 8) {
+    const impact = 130;
+    reasons.push({ factor: 'Matriz energética confiável com superávit de potência', impact, positive: true });
+  }
+
+  if (state.waterCoveragePercent >= 80) {
+    const impact = 160;
+    reasons.push({ factor: 'Universalização do saneamento e água tratada', impact, positive: true });
+  } else if (state.waterCoveragePercent < 60) {
+    const impact = -250;
+    reasons.push({ factor: 'Esgoto a céu aberto e interrupções no fornecimento de água', impact, positive: false });
+  }
+
+  if ((state.gasCoveragePercent || 42) >= 60) {
+    const impact = 90;
+    reasons.push({ factor: 'Ampla rede de gás canalizado residencial e industrial', impact, positive: true });
+  }
+
+  // 6. Conectividade & Telecomunicações (2G, 3G, 4G, 5G)
+  const telecom = state.telecomGeneration || '3G';
+  if (telecom === '5G') {
+    const impact = 350;
+    reasons.push({ factor: 'Sinal 5G ultrarrápido e Cidade Inteligente (atrai jovens e empresas)', impact, positive: true });
+  } else if (telecom === '4G') {
+    const impact = 150;
+    reasons.push({ factor: 'Conexão móvel 4G veloz em todo o perímetro urbano', impact, positive: true });
+  } else if (telecom === '2G') {
+    const impact = -220;
+    reasons.push({ factor: 'Sinal celular arcaico 2G limita o comércio e modernidade', impact, positive: false });
+  }
+
+  // 7. Empresas Instaladas
+  const companiesCount = (state.installedCompanies || []).length;
+  if (companiesCount >= 2) {
+    const impact = 160;
+    reasons.push({ factor: 'Polo industrial e de serviços em expansão atrai novas famílias', impact, positive: true });
+  }
+
+  // Saldo migratório líquido
+  const netMigration = reasons.reduce((sum, r) => sum + r.impact, 0);
+
+  // Nova População
+  const newPopulation = Math.max(5000, state.population + netMigration);
+
+  // Dinâmica de Emprego
+  // Cerca de 52% dos migrantes entram na força de trabalho
+  const deltaWorkforce = Math.round(netMigration * 0.52);
+  const newEmployed = Math.max(2000, state.employed + Math.round(deltaWorkforce * (unemp < 10 ? 0.85 : 0.45)));
+  const totalWorkforce = Math.round(newPopulation * 0.48);
+  const newUnemploymentRate = Number(Math.max(2.0, Math.min(28.0, ((totalWorkforce - newEmployed) / totalWorkforce) * 100)).toFixed(1));
+
+  // Habitação
+  const newFamilyCount = Math.round(newPopulation / 2.9);
+  const newHousingUnits = state.housingUnits || 16800;
+  const newHousingDeficit = Math.max(0, newFamilyCount - newHousingUnits);
+  const newHousingOccupancyRate = Math.min(100, Math.round((newFamilyCount / Math.max(1, newHousingUnits)) * 100));
+
+  // Cálculo da pontuação de atratividade (0 a 100)
+  const baseScore = 50;
+  const migrationBonus = Math.max(-25, Math.min(25, Math.round(netMigration / 30)));
+  const secBonus = Math.round((sec - 50) * 0.2);
+  const eduBonus = Math.round((edu - 50) * 0.15);
+  const healthBonus = Math.round((health - 50) * 0.15);
+  const telecomBonus = telecom === '5G' ? 12 : telecom === '4G' ? 6 : telecom === '3G' ? 0 : -8;
+  const attractiveness = Math.max(5, Math.min(100, baseScore + migrationBonus + secBonus + eduBonus + healthBonus + telecomBonus));
+
+  return {
+    newPopulation,
+    netMigration,
+    reasons,
+    attractiveness,
+    newEmployed,
+    newUnemploymentRate,
+    newHousingUnits,
+    newHousingDeficit,
+    newHousingOccupancyRate,
+  };
+}
+
 export function recalculateMunicipalFinances(state: PrefeitoCityState): PrefeitoCityState {
   const minWage = state.minimumWage || 1412;
   const fineSeverity = state.trafficFineSeverity || 'padrao';
@@ -1125,43 +1564,102 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
   const iptuRicos = Math.round(iptuBase * 0.30 * (iptuRicosRate / 3.5));
   const iptu = iptuPobres + iptuMedios + iptuRicos;
 
-  // ISS varia com alíquota (2% a 5%), atividade econômica e turismo
+  // Receita de Empresas Atraídas para a Cidade
+  let impostosEmpresasInstaladas = 0;
+  (state.installedCompanies || []).forEach((comp) => {
+    impostosEmpresasInstaladas += comp.benefits?.monthlyTaxGain || 0;
+  });
+
+  // Conectividade Telecomunicações & TI
+  let issTelecomDigital = 0;
+  if (state.telecomGeneration === '5G') {
+    issTelecomDigital = 55000;
+  } else if (state.telecomGeneration === '4G') {
+    issTelecomDigital = 22000;
+  }
+
+  // ISS varia com alíquota (2% a 5%), atividade econômica, turismo e empresas instaladas
   const wageBoostToCommerce = Math.max(0, Math.round((minWage - 1412) * 50));
   const touristBoost = Math.round(state.touristsPerMonth * 4.2);
   const issBase = 165000 * (state.jobs / 21200) + touristBoost + wageBoostToCommerce;
-  const iss = Math.round(issBase * (taxRates.issPercent / 3.5));
+  const iss = Math.round(issBase * (taxRates.issPercent / 3.5)) + impostosEmpresasInstaladas + issTelecomDigital;
 
-  // FPM e ICMS (Transferências constitucionais do Estado e União)
-  const fpmIcms = Math.round(130000 * (state.population / 48500));
+  // FPM e ICMS (Transferências constitucionais do Estado e União escalam com população)
+  let fpmMultiplier = 1.0;
+  if (state.population >= 80000) fpmMultiplier = 1.8;
+  else if (state.population >= 60000) fpmMultiplier = 1.4;
+  else if (state.population >= 40000) fpmMultiplier = 1.0;
+  else if (state.population >= 20000) fpmMultiplier = 0.75;
+  else fpmMultiplier = 0.5;
+
+  const fpmIcms = Math.round(130000 * (state.population / 48500) * fpmMultiplier);
 
   // Taxa de Iluminação Pública CIP / COSIP
   const taxaIluminacaoTotal = Math.round((state.population / 3.4) * (taxRates.taxaIluminacaoCip || 18));
 
-  // ITBI - Imposto de Transmissão de Bens Imóveis (Cartórios, Compra e Venda de Imóveis)
+  // ITBI - Imposto de Transmissão de Bens Imóveis
   const itbiRate = (taxRates.itbiPercent || 2.0) / 2.0;
   const itbi = Math.round(42000 * (state.population / 48500) * (state.infrastructureIndex / 58) * itbiRate);
 
-  // Zona Azul Digital & Parquímetros (Estacionamento Rotativo Público)
+  // Zona Azul Digital & Parquímetros
   const estacionamentoRotativo = Math.round(28000 * (state.jobs / 21200) * (state.infrastructureIndex / 55));
 
-  // Taxa de Resíduos Sólidos Urbanos (TCRS / Coleta de Lixo Domiciliar)
+  // Taxa de Resíduos Sólidos Urbanos (TCRS)
   const taxaResiduosColeta = Math.round(31500 * (state.population / 48500));
 
-  // Taxa de Preservação Ambiental & Ecoturismo (TPA cobrada por fluxo turístico)
+  // Taxa de Preservação Ambiental & Ecoturismo
   const tarifaTurismoEcologica = Math.round(Math.max(0, state.touristsPerMonth || 0) * 4.5);
 
-  // Concessões e Outorga de Espaços Públicos (Quiosques, Mercados Municipais & Feiras)
-  const concessoesMercadosQuiosques = Math.round(19500 * (state.infrastructureIndex / 55));
+  // Concessões e Outorga de Espaços Públicos (Quiosques, Feiras e Rede de Gás)
+  const tarifaGasRede = Math.round((state.gasDistributionKm || 38) * 350);
+  const concessoesMercadosQuiosques = Math.round(19500 * (state.infrastructureIndex / 55)) + tarifaGasRede;
 
-  // Venda de Excedente Energético para o Sistema Interligado Nacional (se houver superávit elétrico)
+  // Venda de Excedente Energético para o SIN
   const vendaEnergiaRede = Math.round(Math.max(0, state.energySurplusMw || 0) * 850);
   
   // Multas de Trânsito & Postura Municipal
   const multasTransito =
     fineSeverity === 'rigorosa' ? 120000 : fineSeverity === 'padrao' ? 55000 : 18000;
 
-  const royaltiesPetroleo = state.oilRoyaltiesMonthly || 0;
-  const cfemOuro = state.goldTaxesMonthly || 0;
+  // Políticas Estratégicas de Petróleo e Minérios
+  const natStrategy = state.naturalResourcesStrategy || {
+    oilPolicy: 'export_crude',
+    goldPolicy: 'sell_bullion_cash',
+    sovereignFundBalance: 0,
+    sovereignFundMonthlyYield: 0,
+    goldReserveKg: 0,
+    fuelDiscountActive: false,
+    gasDiscountPercent: 0,
+  };
+
+  let royaltiesPetroleo = state.oilRoyaltiesMonthly || 0;
+  let cfemOuro = state.goldTaxesMonthly || 0;
+  let rendimentoFundoSoberano = 0;
+  let fatorCombustivelFrota = 1.0; // 1.0 = normal, 0.70 = refino local barateia diesel e gasolina!
+
+  if (state.oilProductionBpd > 0) {
+    if (natStrategy.oilPolicy === 'export_crude') {
+      royaltiesPetroleo = state.oilRoyaltiesMonthly;
+    } else if (natStrategy.oilPolicy === 'local_refinery_consumption') {
+      // 35% de royalties em dinheiro vivo; 65% vira refino local: combustível barato para frotas e gás!
+      royaltiesPetroleo = Math.round(state.oilRoyaltiesMonthly * 0.35);
+      fatorCombustivelFrota = 0.70; // 30% de economia em combustíveis municipais
+    } else if (natStrategy.oilPolicy === 'sovereign_wealth_fund') {
+      // 40% de royalties em caixa, 60% vai para poupança perpétua que rende dividendos
+      royaltiesPetroleo = Math.round(state.oilRoyaltiesMonthly * 0.40);
+      rendimentoFundoSoberano = Math.round((natStrategy.sovereignFundBalance || 0) * 0.008); // 0.8% ao mês
+    }
+  }
+
+  if (state.goldProductionKg > 0) {
+    if (natStrategy.goldPolicy === 'sell_bullion_cash') {
+      cfemOuro = state.goldTaxesMonthly;
+    } else if (natStrategy.goldPolicy === 'industrial_tech_jewelry') {
+      cfemOuro = Math.round(state.goldTaxesMonthly * 0.35);
+    } else if (natStrategy.goldPolicy === 'strategic_reserve') {
+      cfemOuro = 0; // Ouro fica estocado no cofre como lastro financeiro
+    }
+  }
 
   // Lucro/Dividendos positivos de empresas públicas
   let lucroEstatais = 0;
@@ -1191,6 +1689,7 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
     multasTransito +
     royaltiesPetroleo +
     cfemOuro +
+    rendimentoFundoSoberano +
     lucroEstatais +
     receitasEmprestimosRecebidos;
 
@@ -1216,14 +1715,14 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
   // Contrato Operacional de Limpeza Urbana, Varrição & Aterro Sanitário
   const limpezaResiduosAterro = Math.round(32000 * (state.population / 48500));
 
-  // Combustível, Óleo e Manutenção da Frota Municipal (Ambulâncias do SAMU, Ônibus Escolares, Viaturas e Tratores)
-  const combustivelManutencaoFrota = Math.round(
+  // Combustível, Óleo e Manutenção da Frota Municipal (com desconto se houver refino local)
+  const baseCombustivel =
     24000 +
     (deptBudgets.segurancaGuarda?.budgetMonthly || 40000) * 0.14 +
-    (deptBudgets.saude?.budgetMonthly || 75000) * 0.08
-  );
+    (deptBudgets.saude?.budgetMonthly || 75000) * 0.08;
+  const combustivelManutencaoFrota = Math.round(baseCombustivel * fatorCombustivelFrota);
 
-  // Conta de Energia Elétrica e Água dos Prédios Públicos (Escolas, Postos de Saúde, Semáforos e Paço Municipal)
+  // Conta de Energia Elétrica e Água dos Prédios Públicos
   const energiaPrediosPublicos = Math.round(22000 * (state.infrastructureIndex / 58));
 
   // Sistemas Digitais, Conectividade, Softwares de Saúde (e-SUS) e IPTU Online
@@ -1244,8 +1743,9 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
   if (companies?.saneamento?.monthlyResult < 0) subsidioEstatais += Math.abs(companies.saneamento.monthlyResult);
   if (companies?.transporte?.monthlyResult < 0) subsidioEstatais += Math.abs(companies.transporte.monthlyResult);
 
-  // Amortização de Dívida Consolidada regular
-  const amortizacaoDividaRegular = state.debt > 0 ? Math.round(state.debt * 0.01) : 0;
+  // Amortização de Dívida Consolidada regular (se tiver reserva de ouro no cofre, rating sobe e juros caem)
+  const descontoLastroOuro = (natStrategy.goldReserveKg || 0) > 20 ? 0.6 : 1.0;
+  const amortizacaoDividaRegular = state.debt > 0 ? Math.round(state.debt * 0.01 * descontoLastroOuro) : 0;
 
   // Parcelas de empréstimos tomados de outras prefeituras
   let parcelasEmprestimosPagos = 0;
@@ -1300,6 +1800,12 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
     fiscalRating,
     departmentBudgets: deptBudgets,
     taxRates,
+    naturalResourcesStrategy: {
+      ...natStrategy,
+      sovereignFundMonthlyYield: rendimentoFundoSoberano,
+      fuelDiscountActive: fatorCombustivelFrota < 1.0,
+      gasDiscountPercent: fatorCombustivelFrota < 1.0 ? 25 : 0,
+    },
     revenueBreakdown: {
       iptuPobres,
       iptuMedios,
@@ -1318,7 +1824,7 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
       multasTransito,
       royaltiesPetroleo,
       cfemOuro,
-      lucroEstatais: lucroEstatais + receitasEmprestimosRecebidos,
+      lucroEstatais: lucroEstatais + receitasEmprestimosRecebidos + rendimentoFundoSoberano,
       total: totalRevenue,
     },
     expenseBreakdown: {
@@ -1343,7 +1849,54 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
 }
 
 export function advanceMonthInSimulation(state: PrefeitoCityState): PrefeitoCityState {
-  const recalculated = recalculateMunicipalFinances(state);
+  // 1. Dinâmica Populacional Estilo SimCity (Imigração/Emigração conforme atratividade)
+  const simCity = calculateSimCityDynamics(state);
+
+  // 2. Fundo Soberano e Reservas Estratégicas de Petróleo e Ouro
+  let updatedSovereignFund = state.naturalResourcesStrategy?.sovereignFundBalance || 0;
+  let updatedGoldReserve = state.naturalResourcesStrategy?.goldReserveKg || 0;
+  if (state.oilProductionBpd > 0 && state.naturalResourcesStrategy?.oilPolicy === 'sovereign_wealth_fund') {
+    const monthlyDeposit = Math.round((state.oilRoyaltiesMonthly || 0) * 0.60);
+    updatedSovereignFund += monthlyDeposit;
+  }
+  if (state.goldProductionKg > 0 && state.naturalResourcesStrategy?.goldPolicy === 'strategic_reserve') {
+    updatedGoldReserve += state.goldProductionKg;
+  }
+
+  const updatedStrategy: NaturalResourcesStrategy = {
+    ...(state.naturalResourcesStrategy || {
+      oilPolicy: 'export_crude',
+      goldPolicy: 'sell_bullion_cash',
+      sovereignFundBalance: 0,
+      sovereignFundMonthlyYield: 0,
+      goldReserveKg: 0,
+      fuelDiscountActive: false,
+      gasDiscountPercent: 0,
+    }),
+    sovereignFundBalance: updatedSovereignFund,
+    goldReserveKg: updatedGoldReserve,
+    fuelDiscountActive:
+      state.oilProductionBpd > 0 && state.naturalResourcesStrategy?.oilPolicy === 'local_refinery_consumption',
+    gasDiscountPercent:
+      state.oilProductionBpd > 0 && state.naturalResourcesStrategy?.oilPolicy === 'local_refinery_consumption' ? 25 : 0,
+  };
+
+  // State com população atualizada e estratégia antes do cálculo orçamentário
+  const stateWithDemographics: PrefeitoCityState = {
+    ...state,
+    population: simCity.newPopulation,
+    employed: simCity.newEmployed,
+    unemploymentRate: simCity.newUnemploymentRate,
+    housingUnits: simCity.newHousingUnits,
+    housingDeficit: simCity.newHousingDeficit,
+    housingOccupancyRate: simCity.newHousingOccupancyRate,
+    monthlyMigration: simCity.netMigration,
+    migrationReasons: simCity.reasons,
+    cityAttractiveness: simCity.attractiveness,
+    naturalResourcesStrategy: updatedStrategy,
+  };
+
+  const recalculated = recalculateMunicipalFinances(stateWithDemographics);
   
   const now = Date.now();
   const gameStart = state.gameStartRealTimestamp || now;
@@ -1382,8 +1935,13 @@ export function advanceMonthInSimulation(state: PrefeitoCityState): PrefeitoCity
 
   const cycleCount = (recalculated.economicCycle?.totalCyclesCompleted || 0) + 1;
 
-  // Notícia Oficial detalhada no Diário Oficial
+  // Notícia Oficial detalhada no Diário Oficial com Dinâmica Populacional SimCity
   const isSuperavit = recalculated.netMonthly >= 0;
+  const migracaoTexto =
+    simCity.netMigration >= 0
+      ? `+${simCity.netMigration.toLocaleString()} novos moradores se mudaram para a cidade atraídos por empregos e infraestrutura.`
+      : `${Math.abs(simCity.netMigration).toLocaleString()} moradores deixaram o município buscando melhores condições.`;
+
   const newArticle: GazetteArticle = {
     id: 'gaz_cycle_' + Date.now(),
     title: isSuperavit
@@ -1392,8 +1950,8 @@ export function advanceMonthInSimulation(state: PrefeitoCityState): PrefeitoCity
     source: 'Diário Oficial',
     type: isSuperavit ? 'decreto' : 'alerta',
     dateStr: calendar.dateStr,
-    body: `A Secretaria da Fazenda finalizou a apuração do ciclo municipal de 2 minutos em ${calendar.dateStr}. Arrecadação apurada: R$ ${recalculated.monthlyRevenue.toLocaleString()} (IPTU: R$ ${recalculated.revenueBreakdown.iptu.toLocaleString()}, ISS: R$ ${recalculated.revenueBreakdown.iss.toLocaleString()}, FPM: R$ ${recalculated.revenueBreakdown.fpmIcms.toLocaleString()}, Multas: R$ ${recalculated.revenueBreakdown.multasTransito.toLocaleString()}${recalculated.oilRoyaltiesMonthly > 0 ? `, Royalties: R$ ${recalculated.oilRoyaltiesMonthly.toLocaleString()}` : ''}). Despesas consolidadas: R$ ${recalculated.monthlyExpenses.toLocaleString()} (Folha Salarial: R$ ${recalculated.payrollExpense.toLocaleString()} - ${payrollRatio}% da RCL, Custeio SUS & Escolas: R$ ${(recalculated.expenseBreakdown.saudeSus + recalculated.expenseBreakdown.educacaoMerenda).toLocaleString()}, Estatais: R$ ${recalculated.expenseBreakdown.subsidioEstatais.toLocaleString()}). Saldo transferido ao Tesouro: ${isSuperavit ? '+' : '-'}R$ ${Math.abs(recalculated.netMonthly).toLocaleString()}.`,
-    impactSummary: `Saldo transferido ao Tesouro: ${isSuperavit ? '+' : '-'}R$ ${Math.abs(recalculated.netMonthly).toLocaleString()} | CAPAG: ${fiscalRating}`,
+    body: `A Secretaria da Fazenda e o Departamento de Demografia emitiram o relatório do ciclo municipal em ${calendar.dateStr}. População atualizada: ${simCity.newPopulation.toLocaleString()} habitantes (${migracaoTexto}). Desemprego apurado: ${simCity.newUnemploymentRate}%. Atratividade urbana: ${simCity.attractiveness}/100. Arrecadação: R$ ${recalculated.monthlyRevenue.toLocaleString()} (IPTU: R$ ${recalculated.revenueBreakdown.iptu.toLocaleString()}, ISS: R$ ${recalculated.revenueBreakdown.iss.toLocaleString()}, FPM: R$ ${recalculated.revenueBreakdown.fpmIcms.toLocaleString()}${recalculated.oilRoyaltiesMonthly > 0 ? `, Royalties Petróleo: R$ ${recalculated.oilRoyaltiesMonthly.toLocaleString()}` : ''}). Despesas: R$ ${recalculated.monthlyExpenses.toLocaleString()}. Saldo no Tesouro: ${isSuperavit ? '+' : '-'}R$ ${Math.abs(recalculated.netMonthly).toLocaleString()}.`,
+    impactSummary: `Saldo transferido ao Tesouro: ${isSuperavit ? '+' : '-'}R$ ${Math.abs(recalculated.netMonthly).toLocaleString()} | População: ${simCity.newPopulation.toLocaleString()} (${simCity.netMigration >= 0 ? '+' : ''}${simCity.netMigration})`,
     timestamp: Date.now(),
   };
 
@@ -1426,6 +1984,297 @@ export function advanceMonthInSimulation(state: PrefeitoCityState): PrefeitoCity
       lastTickTimestamp: Date.now(),
     },
     gazetteFeed: [newArticle, ...recalculated.gazetteFeed].slice(0, 30),
+  };
+}
+
+// =========================================================================
+// AÇÕES DO PREFEITO: ATRAÇÃO DE EMPRESAS, RECURSOS E EXPANSÃO URBANA
+// =========================================================================
+
+export function acceptCorporateOffer(
+  state: PrefeitoCityState,
+  offerId: string
+): { state: PrefeitoCityState; success: boolean; message: string } {
+  const offer = (state.corporateOffers || []).find((o) => o.id === offerId);
+  if (!offer) {
+    return { state, success: false, message: 'Proposta empresarial não encontrada.' };
+  }
+
+  // 1. Validar Requisitos Técnicos da Empresa
+  const telecomHierarchy: Record<string, number> = { '2G': 1, '3G': 2, '4G': 3, '5G': 4 };
+  if (offer.requirements.minTelecom) {
+    const currentScore = telecomHierarchy[state.telecomGeneration || '3G'] || 2;
+    const requiredScore = telecomHierarchy[offer.requirements.minTelecom] || 2;
+    if (currentScore < requiredScore) {
+      return {
+        state,
+        success: false,
+        message: `Conectividade insuficiente: ${offer.companyName} exige rede móvel ${offer.requirements.minTelecom}. A cidade conta atualmente apenas com ${state.telecomGeneration}.`,
+      };
+    }
+  }
+
+  if (offer.requirements.minEnergyMw && (state.energySurplusMw || 0) < offer.requirements.minEnergyMw) {
+    return {
+      state,
+      success: false,
+      message: `Energia insuficiente: a planta industrial exige ${offer.requirements.minEnergyMw} MW de superávit elétrico garantido. A cidade possui apenas ${state.energySurplusMw} MW disponíveis.`,
+    };
+  }
+
+  if (offer.requirements.minWaterCoverage && (state.waterCoveragePercent || 0) < offer.requirements.minWaterCoverage) {
+    return {
+      state,
+      success: false,
+      message: `Saneamento insuficiente: a empresa exige pelo menos ${offer.requirements.minWaterCoverage}% de cobertura de água tratada (cidade possui ${state.waterCoveragePercent}%).`,
+    };
+  }
+
+  if (offer.requirements.minEducationIndex && (state.educationIndex || 0) < offer.requirements.minEducationIndex) {
+    return {
+      state,
+      success: false,
+      message: `Qualificação da mão de obra insuficiente: exige Índice de Educação de pelo menos ${offer.requirements.minEducationIndex} (cidade possui ${state.educationIndex}).`,
+    };
+  }
+
+  if (offer.requirements.minInfrastructureIndex && (state.infrastructureIndex || 0) < offer.requirements.minInfrastructureIndex) {
+    return {
+      state,
+      success: false,
+      message: `Infraestrutura viária insuficiente: exige Índice de Infraestrutura de pelo menos ${offer.requirements.minInfrastructureIndex} (cidade possui ${state.infrastructureIndex}).`,
+    };
+  }
+
+  // 2. Cobrir custo de incentivo (se houver desapropriação / terraplanagem)
+  const landCost = offer.incentivesRequested?.landDonationCost || 0;
+  if (landCost > 0 && state.treasury < landCost) {
+    return {
+      state,
+      success: false,
+      message: `Tesouro insuficiente para cobrir o incentivo de terraplanagem/distrito industrial de R$ ${landCost.toLocaleString()}. Saldo em caixa: R$ ${state.treasury.toLocaleString()}.`,
+    };
+  }
+
+  // 3. Aplicar Instalação da Empresa
+  const newTreasury = state.treasury - landCost;
+  const newJobs = state.jobs + offer.benefits.jobsCreated;
+  const newEmployed = state.employed + Math.round(offer.benefits.jobsCreated * 0.85);
+  const totalWorkforce = Math.round(state.population * 0.48);
+  const newUnemploymentRate = Number(
+    Math.max(2.0, Math.min(28.0, ((totalWorkforce - newEmployed) / totalWorkforce) * 100)).toFixed(1)
+  );
+
+  // Telecom Upgrade se a empresa trouxer 4G ou 5G!
+  let newTelecomGen = state.telecomGeneration;
+  let newTelecomCoverage = state.telecomCoveragePercent;
+  let newFiberCoverage = state.fiberCoveragePercent;
+
+  if (offer.benefits.upgradeTelecom) {
+    newTelecomGen = offer.benefits.upgradeTelecom;
+    newTelecomCoverage = Math.min(100, (state.telecomCoveragePercent || 74) + 18);
+    newFiberCoverage = Math.min(100, (state.fiberCoveragePercent || 32) + 24);
+  }
+
+  // Atualizar listas
+  const acceptedOffer: CorporateOffer = {
+    ...offer,
+    status: 'accepted',
+  };
+
+  const updatedPendingOffers = (state.corporateOffers || []).filter((o) => o.id !== offerId);
+  const updatedInstalled = [acceptedOffer, ...(state.installedCompanies || [])];
+
+  // Matéria no Diário Oficial
+  const officialArticle: GazetteArticle = {
+    id: 'gaz_corp_' + Date.now(),
+    title: `Acordo Histórico: ${offer.companyName} Inicia Instalação no Município`,
+    source: 'Diário Oficial',
+    type: 'decreto',
+    dateStr: state.day + '/' + state.month + '/' + state.year,
+    body: `O Gabinete do Prefeito assinou o termo de atração de investimentos com a diretoria de ${offer.companyName} (${offer.tagline}). A operação vai gerar ${offer.benefits.jobsCreated.toLocaleString()} novos postos de trabalho diretos e tributos mensais estimados em R$ ${offer.benefits.monthlyTaxGain.toLocaleString()}.${offer.benefits.upgradeTelecom ? ` O acordo garante a modernização da infraestrutura digital da cidade para sinal ${offer.benefits.upgradeTelecom}!` : ''}`,
+    impactSummary: `+${offer.benefits.jobsCreated} empregos | +R$ ${offer.benefits.monthlyTaxGain.toLocaleString()}/mês em impostos${offer.benefits.upgradeTelecom ? ` | Conectividade elevada para ${offer.benefits.upgradeTelecom}` : ''}`,
+    timestamp: Date.now(),
+  };
+
+  const updatedState: PrefeitoCityState = {
+    ...state,
+    treasury: newTreasury,
+    jobs: newJobs,
+    employed: newEmployed,
+    unemploymentRate: newUnemploymentRate,
+    telecomGeneration: newTelecomGen,
+    telecomCoveragePercent: newTelecomCoverage,
+    fiberCoveragePercent: newFiberCoverage,
+    corporateOffers: updatedPendingOffers,
+    installedCompanies: updatedInstalled,
+    approvalRating: Math.min(100, state.approvalRating + 4),
+    councilSupport: Math.min(100, state.councilSupport + 3),
+    gazetteFeed: [officialArticle, ...(state.gazetteFeed || [])].slice(0, 30),
+  };
+
+  return {
+    state: recalculateMunicipalFinances(updatedState),
+    success: true,
+    message: `Sucesso! O protocolo de intenções com ${offer.companyName} foi homologado com sucesso!`,
+  };
+}
+
+export function declineCorporateOffer(
+  state: PrefeitoCityState,
+  offerId: string
+): { state: PrefeitoCityState; message: string } {
+  const updatedOffers = (state.corporateOffers || []).filter((o) => o.id !== offerId);
+  return {
+    state: {
+      ...state,
+      corporateOffers: updatedOffers,
+    },
+    message: 'Proposta arquivada pela Secretaria de Desenvolvimento Econômico.',
+  };
+}
+
+export function setNaturalResourcesStrategy(
+  state: PrefeitoCityState,
+  oilPolicy: OilDestinationPolicy,
+  goldPolicy: GoldDestinationPolicy
+): { state: PrefeitoCityState; message: string } {
+  const previousStrategy = state.naturalResourcesStrategy || {
+    oilPolicy: 'export_crude',
+    goldPolicy: 'sell_bullion_cash',
+    sovereignFundBalance: 0,
+    sovereignFundMonthlyYield: 0,
+    goldReserveKg: 0,
+    fuelDiscountActive: false,
+    gasDiscountPercent: 0,
+  };
+
+  const updatedStrategy: NaturalResourcesStrategy = {
+    ...previousStrategy,
+    oilPolicy,
+    goldPolicy,
+    fuelDiscountActive: oilPolicy === 'local_refinery_consumption',
+    gasDiscountPercent: oilPolicy === 'local_refinery_consumption' ? 25 : 0,
+  };
+
+  let policySummary = '';
+  if (oilPolicy === 'local_refinery_consumption') {
+    policySummary = 'Petróleo direcionado para refino local (combustível e gás mais baratos e incentivo à indústria).';
+  } else if (oilPolicy === 'sovereign_wealth_fund') {
+    policySummary = 'Royalties do petróleo destinados ao Fundo Soberano de Poupança Permanente.';
+  } else {
+    policySummary = 'Petróleo vendido no mercado spot (100% dos royalties creditados no caixa).';
+  }
+
+  const gazetteNotice: GazetteArticle = {
+    id: 'gaz_natres_' + Date.now(),
+    title: 'Decreto Municipal Regulamenta Destinação Estratégica dos Recursos Naturais',
+    source: 'Diário Oficial',
+    type: 'decreto',
+    dateStr: state.day + '/' + state.month + '/' + state.year,
+    body: `O Prefeito Municipal promulgou decreto estabelecendo as novas diretrizes para o aproveitamento de petróleo, ouro e minérios do município. ${policySummary}`,
+    impactSummary: `Política do Petróleo: ${oilPolicy} | Política Mineral: ${goldPolicy}`,
+    timestamp: Date.now(),
+  };
+
+  const nextState: PrefeitoCityState = {
+    ...state,
+    naturalResourcesStrategy: updatedStrategy,
+    gazetteFeed: [gazetteNotice, ...(state.gazetteFeed || [])].slice(0, 30),
+  };
+
+  return {
+    state: recalculateMunicipalFinances(nextState),
+    message: 'Diretriz estratégica de recursos minerais e energéticos atualizada com sucesso!',
+  };
+}
+
+export function buildHousingAction(
+  state: PrefeitoCityState,
+  unitsCount: number,
+  cost: number
+): { state: PrefeitoCityState; success: boolean; message: string } {
+  if (state.treasury < cost) {
+    return {
+      state,
+      success: false,
+      message: `Tesouro insuficiente. O programa habitacional de ${unitsCount} moradias custa R$ ${cost.toLocaleString()}, mas a cidade possui R$ ${state.treasury.toLocaleString()}.`,
+    };
+  }
+
+  const newUnits = (state.housingUnits || 16800) + unitsCount;
+  const newFamilyCount = Math.round(state.population / 2.9);
+  const newDeficit = Math.max(0, newFamilyCount - newUnits);
+  const newOccupancy = Math.min(100, Math.round((newFamilyCount / Math.max(1, newUnits)) * 100));
+
+  const article: GazetteArticle = {
+    id: 'gaz_house_' + Date.now(),
+    title: `Entrega de Chaves: Programa Habitacional Municipal Conclui ${unitsCount} Novas Moradias`,
+    source: 'Diário Oficial',
+    type: 'decreto',
+    dateStr: state.day + '/' + state.month + '/' + state.year,
+    body: `Em cerimônia no Paço Municipal, a Prefeitura formalizou a entrega de ${unitsCount} unidades habitacionais populares equipadas com rede de água, energia e gás, reduzindo significativamente o déficit habitacional da cidade.`,
+    impactSummary: `+${unitsCount} moradias | Déficit habitacional reduzido para ${newDeficit} famílias`,
+    timestamp: Date.now(),
+  };
+
+  const updatedState: PrefeitoCityState = {
+    ...state,
+    treasury: state.treasury - cost,
+    housingUnits: newUnits,
+    housingDeficit: newDeficit,
+    housingOccupancyRate: newOccupancy,
+    approvalRating: Math.min(100, state.approvalRating + 3),
+    gazetteFeed: [article, ...(state.gazetteFeed || [])].slice(0, 30),
+  };
+
+  return {
+    state: recalculateMunicipalFinances(updatedState),
+    success: true,
+    message: `Parabéns! ${unitsCount} novas moradias foram entregues à população!`,
+  };
+}
+
+export function expandGasNetworkAction(
+  state: PrefeitoCityState,
+  kmCount: number,
+  cost: number
+): { state: PrefeitoCityState; success: boolean; message: string } {
+  if (state.treasury < cost) {
+    return {
+      state,
+      success: false,
+      message: `Tesouro insuficiente para expandir a rede de gás canalizado. Custo: R$ ${cost.toLocaleString()}, Caixa: R$ ${state.treasury.toLocaleString()}.`,
+    };
+  }
+
+  const newKm = (state.gasDistributionKm || 38) + kmCount;
+  const newCoverage = Math.min(95, Math.round((newKm / 75) * 100));
+
+  const article: GazetteArticle = {
+    id: 'gaz_gas_' + Date.now(),
+    title: `Gás Canalizado Urbano: Rede Expandida em +${kmCount} Quilômetros`,
+    source: 'Diário Oficial',
+    type: 'decreto',
+    dateStr: state.day + '/' + state.month + '/' + state.year,
+    body: `A expansão das tubulações de gás natural e canalizado alcançou novos bairros e distritos comerciais. A cobertura de gás agora atinge ${newCoverage}% do perímetro urbano, barateando a energia das famílias e cozinhas industriais.`,
+    impactSummary: `+${kmCount} km de rede de gás | Cobertura agora em ${newCoverage}%`,
+    timestamp: Date.now(),
+  };
+
+  const updatedState: PrefeitoCityState = {
+    ...state,
+    treasury: state.treasury - cost,
+    gasDistributionKm: newKm,
+    gasCoveragePercent: newCoverage,
+    approvalRating: Math.min(100, state.approvalRating + 2),
+    gazetteFeed: [article, ...(state.gazetteFeed || [])].slice(0, 30),
+  };
+
+  return {
+    state: recalculateMunicipalFinances(updatedState),
+    success: true,
+    message: `Rede de gás canalizado expandida em +${kmCount} km com sucesso!`,
   };
 }
 
