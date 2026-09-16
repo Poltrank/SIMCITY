@@ -159,6 +159,7 @@ export default function App() {
   useEffect(() => {
     try {
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cityState));
+      updateCurrentUserState(cityState);
     } catch (e) {
       console.error('Failed to persist state:', e);
     }
@@ -290,36 +291,59 @@ export default function App() {
   const handleSetMinimumWage = useCallback((newWage: number) => {
     setCityState((prev) => {
       const result = setMinimumWagePolicy(prev, newWage);
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(result.state));
+        updateCurrentUserState(result.state);
+      } catch (e) {}
+      saveStateOnline(result.state);
       showToast(result.message, 'success');
       return result.state;
     });
-  }, []);
+  }, [saveStateOnline]);
 
   const handleSetPublicCompany = useCallback(
     (company: 'correios' | 'saneamento' | 'transporte', status: string) => {
       setCityState((prev) => {
         const result = setPublicCompanyStatus(prev, company, status);
         sounds.playStamp();
+        try {
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(result.state));
+          updateCurrentUserState(result.state);
+        } catch (e) {}
+        saveStateOnline(result.state);
         showToast(result.message, 'success');
         return result.state;
       });
     },
-    []
+    [saveStateOnline]
   );
 
-  const handleSetTrafficFines = useCallback((severity: 'educativa' | 'padrao' | 'rigorosa') => {
-    setCityState((prev) => {
-      const result = setTrafficFinePolicy(prev, severity);
-      sounds.playStamp();
-      showToast(result.message, 'success');
-      return result.state;
-    });
-  }, []);
+  const handleSetTrafficFines = useCallback(
+    (severity: 'educativa' | 'padrao' | 'rigorosa') => {
+      setCityState((prev) => {
+        const result = setTrafficFinePolicy(prev, severity);
+        sounds.playStamp();
+        try {
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(result.state));
+          updateCurrentUserState(result.state);
+        } catch (e) {}
+        saveStateOnline(result.state);
+        showToast(result.message, 'success');
+        return result.state;
+      });
+    },
+    [saveStateOnline]
+  );
 
   const handleToggleAutoTick = useCallback(() => {
     setCityState((prev) => {
       const updated = toggleAutoFiscalCycle(prev);
       sounds.playClick();
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+        updateCurrentUserState(updated);
+      } catch (e) {}
+      saveStateOnline(updated);
       showToast(
         updated.economicCycle.autoTick
           ? 'Ciclo fiscal automático de 2 minutos reativado.'
@@ -328,7 +352,7 @@ export default function App() {
       );
       return updated;
     });
-  }, []);
+  }, [saveStateOnline]);
 
   // Department Budget Adjustment
   const handleUpdateDepartmentBudget = useCallback(
@@ -340,11 +364,16 @@ export default function App() {
       setCityState((prev) => {
         const result = setDepartmentBudgetPolicy(prev, dept, amount, focus);
         sounds.playStamp();
+        try {
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(result.state));
+          updateCurrentUserState(result.state);
+        } catch (e) {}
+        saveStateOnline(result.state);
         showToast(result.message || 'Orçamento da secretaria atualizado pelo Chefe do Executivo.', 'success');
         return result.state;
       });
     },
-    []
+    [saveStateOnline]
   );
 
   // Tax Rates Adjustment
@@ -361,11 +390,16 @@ export default function App() {
       setCityState((prev) => {
         const result = setTaxRatesPolicy(prev, rates);
         sounds.playStamp();
+        try {
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(result.state));
+          updateCurrentUserState(result.state);
+        } catch (e) {}
+        saveStateOnline(result.state);
         showToast(result.message || 'Código tributário municipal republicado no Diário Oficial!', 'success');
         return result.state;
       });
     },
-    []
+    [saveStateOnline]
   );
 
   // Manual Trigger of Emergency Event

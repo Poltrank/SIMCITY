@@ -162,46 +162,58 @@ export const PublicPoliciesView: React.FC<PublicPoliciesViewProps> = ({
 
             {/* Presets de valor rápido */}
             <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-300 block">
-                Escolha o patamar ou selecione um reajuste:
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-300 block">
+                  Escolha o patamar (clique para salvar imediatamente):
+                </label>
+                {savedSuccess && (
+                  <span className="text-xs text-emerald-400 font-bold flex items-center gap-1 animate-pulse">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Salvo com sucesso!
+                  </span>
+                )}
+              </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {wagePresets.map((preset) => (
-                  <div
+                  <button
                     key={preset.wage}
-                    className={`p-3 rounded-lg border text-left transition-all flex flex-col justify-between ${
-                      selectedWage === preset.wage
+                    type="button"
+                    onClick={() => {
+                      setSelectedWage(preset.wage);
+                      handleApplyWage(preset.wage);
+                    }}
+                    className={`p-3 rounded-lg border text-left transition-all flex flex-col justify-between cursor-pointer ${
+                      currentWage === preset.wage
+                        ? 'bg-emerald-950/40 border-emerald-500 text-white shadow-md ring-1 ring-emerald-500'
+                        : selectedWage === preset.wage
                         ? 'bg-amber-500/15 border-amber-500 text-white shadow-sm ring-1 ring-amber-500'
                         : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700'
                     }`}
                   >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedWage(preset.wage);
-                        sounds.playClick();
-                      }}
-                      className="w-full text-left"
-                    >
-                      <div className="text-xs font-bold">{preset.label}</div>
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold">{preset.label}</span>
+                        {currentWage === preset.wage && (
+                          <span className="text-[9px] bg-emerald-500 text-slate-950 font-black px-1.5 py-0.5 rounded">
+                            ATIVO
+                          </span>
+                        )}
+                      </div>
                       <div className="text-sm font-black text-amber-400 mt-1">
                         R$ {preset.wage.toLocaleString()}
                       </div>
                       <div className="text-[10px] text-slate-500 mt-0.5 truncate">{preset.note}</div>
-                    </button>
+                    </div>
 
-                    <button
-                      type="button"
-                      onClick={() => handleApplyWage(preset.wage)}
-                      className={`mt-2 w-full py-1 text-[10px] font-bold rounded transition-colors ${
+                    <div
+                      className={`mt-2 w-full py-1 text-[10px] font-bold rounded text-center transition-colors ${
                         currentWage === preset.wage
-                          ? 'bg-emerald-950 text-emerald-300 border border-emerald-600/50 cursor-default'
-                          : 'bg-amber-500/20 hover:bg-amber-500 hover:text-slate-950 text-amber-300 border border-amber-500/40'
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                          : 'bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-slate-300'
                       }`}
                     >
-                      {currentWage === preset.wage ? '✓ Vigente' : '⚡ Salvar Este'}
-                    </button>
-                  </div>
+                      {currentWage === preset.wage ? '✓ Opção Salva' : 'Selecionar & Salvar'}
+                    </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -220,7 +232,11 @@ export const PublicPoliciesView: React.FC<PublicPoliciesViewProps> = ({
                 max={2500}
                 step={25}
                 value={selectedWage}
-                onChange={(e) => setSelectedWage(Number(e.target.value))}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setSelectedWage(val);
+                }}
+                onPointerUp={() => handleApplyWage(selectedWage)}
                 className="w-full accent-amber-500 cursor-pointer h-2 bg-slate-800 rounded-lg"
               />
               <div className="flex justify-between text-[10px] text-slate-500 font-mono">
@@ -416,21 +432,41 @@ export const PublicPoliciesView: React.FC<PublicPoliciesViewProps> = ({
               </div>
             </div>
 
+            {/* Opção Atual Salva */}
+            <div className="mb-4 px-4 py-2.5 bg-slate-950 rounded-xl border border-emerald-500/40 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="text-xs text-slate-300">
+                  Opção Vigente Salva:{' '}
+                  <strong className="text-emerald-400 font-bold uppercase">
+                    {cityState.publicCompanies.correios.status === 'social'
+                      ? 'Empresa Pública de Interesse Social'
+                      : cityState.publicCompanies.correios.status === 'lucrativa'
+                      ? 'Empresa Pública Lucrativa & Logística'
+                      : 'Concessão / Terceirização Privada'}
+                  </strong>
+                </span>
+              </div>
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded border border-emerald-500/30">
+                ✓ Salvo no Diário Oficial
+              </span>
+            </div>
+
             {/* Opções de Modelo de Gestão */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Modelo Social */}
               <div
                 className={`p-4 rounded-xl border transition-all ${
                   cityState.publicCompanies.correios.status === 'social'
-                    ? 'bg-amber-500/10 border-amber-500 shadow-md'
-                    : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                    ? 'bg-emerald-950/30 border-2 border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
+                    : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 opacity-80 hover:opacity-100'
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-bold text-xs text-white">Empresa Pública de Interesse Social</span>
                   {cityState.publicCompanies.correios.status === 'social' && (
-                    <span className="text-[10px] bg-amber-500 text-slate-950 font-black px-1.5 py-0.5 rounded">
-                      ATIVO
+                    <span className="text-[10px] bg-emerald-500 text-slate-950 font-black px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                      <CheckCircle2 className="w-3 h-3" /> ATIVO & SALVO
                     </span>
                   )}
                 </div>
@@ -454,13 +490,13 @@ export const PublicPoliciesView: React.FC<PublicPoliciesViewProps> = ({
                   disabled={cityState.publicCompanies.correios.status === 'social'}
                   className={`w-full mt-3 py-2 rounded-lg text-xs font-bold transition-all ${
                     cityState.publicCompanies.correios.status === 'social'
-                      ? 'bg-slate-800 text-slate-500 cursor-default'
-                      : 'bg-amber-500 hover:bg-amber-400 text-slate-950 cursor-pointer font-black'
+                      ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/50 cursor-default flex items-center justify-center gap-1.5'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer'
                   }`}
                 >
                   {cityState.publicCompanies.correios.status === 'social'
-                    ? 'Modelo em Vigor'
-                    : 'Adotar Modelo Social'}
+                    ? '✓ Opção Escolhida e Salva'
+                    : 'Trocar para Modelo Social'}
                 </button>
               </div>
 
@@ -468,15 +504,15 @@ export const PublicPoliciesView: React.FC<PublicPoliciesViewProps> = ({
               <div
                 className={`p-4 rounded-xl border transition-all ${
                   cityState.publicCompanies.correios.status === 'lucrativa'
-                    ? 'bg-emerald-500/10 border-emerald-500 shadow-md'
-                    : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                    ? 'bg-emerald-950/30 border-2 border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
+                    : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 opacity-80 hover:opacity-100'
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-bold text-xs text-white">Empresa Pública Lucrativa & Logística</span>
                   {cityState.publicCompanies.correios.status === 'lucrativa' && (
-                    <span className="text-[10px] bg-emerald-500 text-slate-950 font-black px-1.5 py-0.5 rounded">
-                      ATIVO
+                    <span className="text-[10px] bg-emerald-500 text-slate-950 font-black px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                      <CheckCircle2 className="w-3 h-3" /> ATIVO & SALVO
                     </span>
                   )}
                 </div>
@@ -500,13 +536,13 @@ export const PublicPoliciesView: React.FC<PublicPoliciesViewProps> = ({
                   disabled={cityState.publicCompanies.correios.status === 'lucrativa'}
                   className={`w-full mt-3 py-2 rounded-lg text-xs font-bold transition-all ${
                     cityState.publicCompanies.correios.status === 'lucrativa'
-                      ? 'bg-slate-800 text-slate-500 cursor-default'
-                      : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 cursor-pointer font-black'
+                      ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/50 cursor-default flex items-center justify-center gap-1.5'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer'
                   }`}
                 >
                   {cityState.publicCompanies.correios.status === 'lucrativa'
-                    ? 'Modelo em Vigor'
-                    : 'Tornar Empresa Lucrativa'}
+                    ? '✓ Opção Escolhida e Salva'
+                    : 'Trocar para Modelo Lucrativo'}
                 </button>
               </div>
 
@@ -514,15 +550,15 @@ export const PublicPoliciesView: React.FC<PublicPoliciesViewProps> = ({
               <div
                 className={`p-4 rounded-xl border transition-all ${
                   cityState.publicCompanies.correios.status === 'concessao'
-                    ? 'bg-sky-500/10 border-sky-500 shadow-md'
-                    : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                    ? 'bg-emerald-950/30 border-2 border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
+                    : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 opacity-80 hover:opacity-100'
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-bold text-xs text-white">Concessão / Terceirização Privada</span>
                   {cityState.publicCompanies.correios.status === 'concessao' && (
-                    <span className="text-[10px] bg-sky-500 text-slate-950 font-black px-1.5 py-0.5 rounded">
-                      ATIVO
+                    <span className="text-[10px] bg-emerald-500 text-slate-950 font-black px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                      <CheckCircle2 className="w-3 h-3" /> ATIVO & SALVO
                     </span>
                   )}
                 </div>
@@ -546,13 +582,13 @@ export const PublicPoliciesView: React.FC<PublicPoliciesViewProps> = ({
                   disabled={cityState.publicCompanies.correios.status === 'concessao'}
                   className={`w-full mt-3 py-2 rounded-lg text-xs font-bold transition-all ${
                     cityState.publicCompanies.correios.status === 'concessao'
-                      ? 'bg-slate-800 text-slate-500 cursor-default'
-                      : 'bg-sky-500 hover:bg-sky-400 text-slate-950 cursor-pointer font-black'
+                      ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/50 cursor-default flex items-center justify-center gap-1.5'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer'
                   }`}
                 >
                   {cityState.publicCompanies.correios.status === 'concessao'
-                    ? 'Modelo em Vigor'
-                    : 'Leiloar Concessão Privada'}
+                    ? '✓ Opção Escolhida e Salva'
+                    : 'Trocar para Concessão Privada'}
                 </button>
               </div>
             </div>
@@ -592,20 +628,40 @@ export const PublicPoliciesView: React.FC<PublicPoliciesViewProps> = ({
               </div>
             </div>
 
+            {/* Opção Atual Salva */}
+            <div className="mb-4 px-4 py-2.5 bg-slate-950 rounded-xl border border-emerald-500/40 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="text-xs text-slate-300">
+                  Opção Vigente Salva:{' '}
+                  <strong className="text-emerald-400 font-bold uppercase">
+                    {cityState.publicCompanies.transporte.status === 'tarifa_zero'
+                      ? 'Tarifa Zero (Passe Livre 100%)'
+                      : cityState.publicCompanies.transporte.status === 'subsidiada'
+                      ? 'Tarifa Subsidiada (R$ 4,50)'
+                      : 'Concessão Comercial Privada'}
+                  </strong>
+                </span>
+              </div>
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded border border-emerald-500/30">
+                ✓ Salvo no Diário Oficial
+              </span>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Tarifa Zero */}
               <div
                 className={`p-4 rounded-xl border transition-all ${
                   cityState.publicCompanies.transporte.status === 'tarifa_zero'
-                    ? 'bg-emerald-500/10 border-emerald-500 shadow-md'
-                    : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                    ? 'bg-emerald-950/30 border-2 border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
+                    : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 opacity-80 hover:opacity-100'
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-bold text-xs text-white">Tarifa Zero (Passe Livre 100%)</span>
                   {cityState.publicCompanies.transporte.status === 'tarifa_zero' && (
-                    <span className="text-[10px] bg-emerald-500 text-slate-950 font-black px-1.5 py-0.5 rounded">
-                      ATIVO
+                    <span className="text-[10px] bg-emerald-500 text-slate-950 font-black px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                      <CheckCircle2 className="w-3 h-3" /> ATIVO & SALVO
                     </span>
                   )}
                 </div>
@@ -629,13 +685,13 @@ export const PublicPoliciesView: React.FC<PublicPoliciesViewProps> = ({
                   disabled={cityState.publicCompanies.transporte.status === 'tarifa_zero'}
                   className={`w-full mt-3 py-2 rounded-lg text-xs font-bold transition-all ${
                     cityState.publicCompanies.transporte.status === 'tarifa_zero'
-                      ? 'bg-slate-800 text-slate-500 cursor-default'
-                      : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 cursor-pointer font-black'
+                      ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/50 cursor-default flex items-center justify-center gap-1.5'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer'
                   }`}
                 >
                   {cityState.publicCompanies.transporte.status === 'tarifa_zero'
-                    ? 'Tarifa Zero em Vigor'
-                    : 'Implantar Tarifa Zero'}
+                    ? '✓ Opção Escolhida e Salva'
+                    : 'Trocar para Tarifa Zero'}
                 </button>
               </div>
 
@@ -643,15 +699,15 @@ export const PublicPoliciesView: React.FC<PublicPoliciesViewProps> = ({
               <div
                 className={`p-4 rounded-xl border transition-all ${
                   cityState.publicCompanies.transporte.status === 'subsidiada'
-                    ? 'bg-amber-500/10 border-amber-500 shadow-md'
-                    : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                    ? 'bg-emerald-950/30 border-2 border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
+                    : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 opacity-80 hover:opacity-100'
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-bold text-xs text-white">Tarifa Subsidiada (R$ 4,50)</span>
                   {cityState.publicCompanies.transporte.status === 'subsidiada' && (
-                    <span className="text-[10px] bg-amber-500 text-slate-950 font-black px-1.5 py-0.5 rounded">
-                      ATIVO
+                    <span className="text-[10px] bg-emerald-500 text-slate-950 font-black px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                      <CheckCircle2 className="w-3 h-3" /> ATIVO & SALVO
                     </span>
                   )}
                 </div>
@@ -675,13 +731,13 @@ export const PublicPoliciesView: React.FC<PublicPoliciesViewProps> = ({
                   disabled={cityState.publicCompanies.transporte.status === 'subsidiada'}
                   className={`w-full mt-3 py-2 rounded-lg text-xs font-bold transition-all ${
                     cityState.publicCompanies.transporte.status === 'subsidiada'
-                      ? 'bg-slate-800 text-slate-500 cursor-default'
-                      : 'bg-amber-500 hover:bg-amber-400 text-slate-950 cursor-pointer font-black'
+                      ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/50 cursor-default flex items-center justify-center gap-1.5'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer'
                   }`}
                 >
                   {cityState.publicCompanies.transporte.status === 'subsidiada'
-                    ? 'Modelo em Vigor'
-                    : 'Manter Tarifa R$ 4,50'}
+                    ? '✓ Opção Escolhida e Salva'
+                    : 'Trocar para Tarifa Subsidiada'}
                 </button>
               </div>
 
@@ -689,15 +745,15 @@ export const PublicPoliciesView: React.FC<PublicPoliciesViewProps> = ({
               <div
                 className={`p-4 rounded-xl border transition-all ${
                   cityState.publicCompanies.transporte.status === 'privatizada'
-                    ? 'bg-sky-500/10 border-sky-500 shadow-md'
-                    : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                    ? 'bg-emerald-950/30 border-2 border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
+                    : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 opacity-80 hover:opacity-100'
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-bold text-xs text-white">Concessão Comercial Privada</span>
                   {cityState.publicCompanies.transporte.status === 'privatizada' && (
-                    <span className="text-[10px] bg-sky-500 text-slate-950 font-black px-1.5 py-0.5 rounded">
-                      ATIVO
+                    <span className="text-[10px] bg-emerald-500 text-slate-950 font-black px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                      <CheckCircle2 className="w-3 h-3" /> ATIVO & SALVO
                     </span>
                   )}
                 </div>
@@ -721,13 +777,13 @@ export const PublicPoliciesView: React.FC<PublicPoliciesViewProps> = ({
                   disabled={cityState.publicCompanies.transporte.status === 'privatizada'}
                   className={`w-full mt-3 py-2 rounded-lg text-xs font-bold transition-all ${
                     cityState.publicCompanies.transporte.status === 'privatizada'
-                      ? 'bg-slate-800 text-slate-500 cursor-default'
-                      : 'bg-sky-500 hover:bg-sky-400 text-slate-950 cursor-pointer font-black'
+                      ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/50 cursor-default flex items-center justify-center gap-1.5'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer'
                   }`}
                 >
                   {cityState.publicCompanies.transporte.status === 'privatizada'
-                    ? 'Modelo em Vigor'
-                    : 'Conceder Transporte'}
+                    ? '✓ Opção Escolhida e Salva'
+                    : 'Trocar para Concessão Comercial'}
                 </button>
               </div>
             </div>
@@ -758,19 +814,39 @@ export const PublicPoliciesView: React.FC<PublicPoliciesViewProps> = ({
               </div>
             </div>
 
+            {/* Opção Atual Salva */}
+            <div className="mb-4 px-4 py-2.5 bg-slate-950 rounded-xl border border-emerald-500/40 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="text-xs text-slate-300">
+                  Opção Vigente Salva:{' '}
+                  <strong className="text-emerald-400 font-bold uppercase">
+                    {cityState.publicCompanies.saneamento.status === 'estatal'
+                      ? 'Estatal Municipal com Tarifa Social'
+                      : cityState.publicCompanies.saneamento.status === 'mista'
+                      ? 'Economia Mista (Ações & Investimentos)'
+                      : 'Concessão Plena (Marco Legal)'}
+                  </strong>
+                </span>
+              </div>
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded border border-emerald-500/30">
+                ✓ Salvo no Diário Oficial
+              </span>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div
                 className={`p-4 rounded-xl border transition-all ${
                   cityState.publicCompanies.saneamento.status === 'estatal'
-                    ? 'bg-teal-500/10 border-teal-500 shadow-md'
-                    : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                    ? 'bg-emerald-950/30 border-2 border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
+                    : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 opacity-80 hover:opacity-100'
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-bold text-xs text-white">Estatal com Tarifa Social</span>
                   {cityState.publicCompanies.saneamento.status === 'estatal' && (
-                    <span className="text-[10px] bg-teal-500 text-slate-950 font-black px-1.5 py-0.5 rounded">
-                      ATIVO
+                    <span className="text-[10px] bg-emerald-500 text-slate-950 font-black px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                      <CheckCircle2 className="w-3 h-3" /> ATIVO & SALVO
                     </span>
                   )}
                 </div>
@@ -784,28 +860,28 @@ export const PublicPoliciesView: React.FC<PublicPoliciesViewProps> = ({
                   disabled={cityState.publicCompanies.saneamento.status === 'estatal'}
                   className={`w-full mt-3 py-2 rounded-lg text-xs font-bold transition-all ${
                     cityState.publicCompanies.saneamento.status === 'estatal'
-                      ? 'bg-slate-800 text-slate-500 cursor-default'
-                      : 'bg-teal-500 hover:bg-teal-400 text-slate-950 cursor-pointer font-black'
+                      ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/50 cursor-default flex items-center justify-center gap-1.5'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer'
                   }`}
                 >
                   {cityState.publicCompanies.saneamento.status === 'estatal'
-                    ? 'Modelo em Vigor'
-                    : 'Manter Estatal'}
+                    ? '✓ Opção Escolhida e Salva'
+                    : 'Trocar para Modelo Estatal'}
                 </button>
               </div>
 
               <div
                 className={`p-4 rounded-xl border transition-all ${
                   cityState.publicCompanies.saneamento.status === 'mista'
-                    ? 'bg-blue-500/10 border-blue-500 shadow-md'
-                    : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                    ? 'bg-emerald-950/30 border-2 border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
+                    : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 opacity-80 hover:opacity-100'
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-bold text-xs text-white">Economia Mista (Ações & Investimentos)</span>
                   {cityState.publicCompanies.saneamento.status === 'mista' && (
-                    <span className="text-[10px] bg-blue-500 text-slate-950 font-black px-1.5 py-0.5 rounded">
-                      ATIVO
+                    <span className="text-[10px] bg-emerald-500 text-slate-950 font-black px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                      <CheckCircle2 className="w-3 h-3" /> ATIVO & SALVO
                     </span>
                   )}
                 </div>
@@ -819,28 +895,28 @@ export const PublicPoliciesView: React.FC<PublicPoliciesViewProps> = ({
                   disabled={cityState.publicCompanies.saneamento.status === 'mista'}
                   className={`w-full mt-3 py-2 rounded-lg text-xs font-bold transition-all ${
                     cityState.publicCompanies.saneamento.status === 'mista'
-                      ? 'bg-slate-800 text-slate-500 cursor-default'
-                      : 'bg-blue-500 hover:bg-blue-400 text-slate-950 cursor-pointer font-black'
+                      ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/50 cursor-default flex items-center justify-center gap-1.5'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer'
                   }`}
                 >
                   {cityState.publicCompanies.saneamento.status === 'mista'
-                    ? 'Modelo em Vigor'
-                    : 'Abrir Capital Misto'}
+                    ? '✓ Opção Escolhida e Salva'
+                    : 'Trocar para Capital Misto'}
                 </button>
               </div>
 
               <div
                 className={`p-4 rounded-xl border transition-all ${
                   cityState.publicCompanies.saneamento.status === 'concessao'
-                    ? 'bg-sky-500/10 border-sky-500 shadow-md'
-                    : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                    ? 'bg-emerald-950/30 border-2 border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
+                    : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 opacity-80 hover:opacity-100'
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-bold text-xs text-white">Concessão Plena (Marco Legal)</span>
                   {cityState.publicCompanies.saneamento.status === 'concessao' && (
-                    <span className="text-[10px] bg-sky-500 text-slate-950 font-black px-1.5 py-0.5 rounded">
-                      ATIVO
+                    <span className="text-[10px] bg-emerald-500 text-slate-950 font-black px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                      <CheckCircle2 className="w-3 h-3" /> ATIVO & SALVO
                     </span>
                   )}
                 </div>
@@ -854,13 +930,13 @@ export const PublicPoliciesView: React.FC<PublicPoliciesViewProps> = ({
                   disabled={cityState.publicCompanies.saneamento.status === 'concessao'}
                   className={`w-full mt-3 py-2 rounded-lg text-xs font-bold transition-all ${
                     cityState.publicCompanies.saneamento.status === 'concessao'
-                      ? 'bg-slate-800 text-slate-500 cursor-default'
-                      : 'bg-sky-500 hover:bg-sky-400 text-slate-950 cursor-pointer font-black'
+                      ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/50 cursor-default flex items-center justify-center gap-1.5'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer'
                   }`}
                 >
                   {cityState.publicCompanies.saneamento.status === 'concessao'
-                    ? 'Modelo em Vigor'
-                    : 'Leiloar Concessão'}
+                    ? '✓ Opção Escolhida e Salva'
+                    : 'Trocar para Concessão Plena'}
                 </button>
               </div>
             </div>
@@ -884,20 +960,40 @@ export const PublicPoliciesView: React.FC<PublicPoliciesViewProps> = ({
             </p>
           </div>
 
+          {/* Opção Atual Salva */}
+          <div className="mb-4 px-4 py-2.5 bg-slate-950 rounded-xl border border-emerald-500/40 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span className="text-xs text-slate-300">
+                Regime de Fiscalização Vigente:{' '}
+                <strong className="text-emerald-400 font-bold uppercase">
+                  {cityState.trafficFineSeverity === 'rigorosa'
+                    ? 'Fiscalização Rigorosa & Radares 24h'
+                    : cityState.trafficFineSeverity === 'padrao'
+                    ? 'Nível Padrão Regulatório'
+                    : 'Campanhas Educativas & Tolerância'}
+                </strong>
+              </span>
+            </div>
+            <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded border border-emerald-500/30">
+              ✓ Salvo no Diário Oficial
+            </span>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Rigorosa */}
             <div
               className={`p-4 rounded-xl border transition-all ${
                 cityState.trafficFineSeverity === 'rigorosa'
-                  ? 'bg-rose-500/10 border-rose-500 shadow-md'
-                  : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                  ? 'bg-emerald-950/30 border-2 border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
+                  : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 opacity-80 hover:opacity-100'
               }`}
             >
               <div className="flex items-center justify-between mb-2">
                 <span className="font-bold text-xs text-white">Fiscalização Rigorosa & Radares 24h</span>
                 {cityState.trafficFineSeverity === 'rigorosa' && (
-                  <span className="text-[10px] bg-rose-500 text-slate-950 font-black px-1.5 py-0.5 rounded">
-                    ATIVO
+                  <span className="text-[10px] bg-emerald-500 text-slate-950 font-black px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                    <CheckCircle2 className="w-3 h-3" /> ATIVO & SALVO
                   </span>
                 )}
               </div>
@@ -921,11 +1017,13 @@ export const PublicPoliciesView: React.FC<PublicPoliciesViewProps> = ({
                 disabled={cityState.trafficFineSeverity === 'rigorosa'}
                 className={`w-full mt-3 py-2 rounded-lg text-xs font-bold transition-all ${
                   cityState.trafficFineSeverity === 'rigorosa'
-                    ? 'bg-slate-800 text-slate-500 cursor-default'
-                    : 'bg-rose-500 hover:bg-rose-400 text-slate-950 cursor-pointer font-black'
+                    ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/50 cursor-default flex items-center justify-center gap-1.5'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer'
                 }`}
               >
-                {cityState.trafficFineSeverity === 'rigorosa' ? 'Em Vigor' : 'Ativar Fiscalização Rigorosa'}
+                {cityState.trafficFineSeverity === 'rigorosa'
+                  ? '✓ Opção Escolhida e Salva'
+                  : 'Trocar para Fiscalização Rigorosa'}
               </button>
             </div>
 
@@ -933,15 +1031,15 @@ export const PublicPoliciesView: React.FC<PublicPoliciesViewProps> = ({
             <div
               className={`p-4 rounded-xl border transition-all ${
                 cityState.trafficFineSeverity === 'padrao'
-                  ? 'bg-amber-500/10 border-amber-500 shadow-md'
-                  : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                  ? 'bg-emerald-950/30 border-2 border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
+                  : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 opacity-80 hover:opacity-100'
               }`}
             >
               <div className="flex items-center justify-between mb-2">
                 <span className="font-bold text-xs text-white">Nível Padrão Regulatório</span>
                 {cityState.trafficFineSeverity === 'padrao' && (
-                  <span className="text-[10px] bg-amber-500 text-slate-950 font-black px-1.5 py-0.5 rounded">
-                    ATIVO
+                  <span className="text-[10px] bg-emerald-500 text-slate-950 font-black px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                    <CheckCircle2 className="w-3 h-3" /> ATIVO & SALVO
                   </span>
                 )}
               </div>
@@ -965,11 +1063,13 @@ export const PublicPoliciesView: React.FC<PublicPoliciesViewProps> = ({
                 disabled={cityState.trafficFineSeverity === 'padrao'}
                 className={`w-full mt-3 py-2 rounded-lg text-xs font-bold transition-all ${
                   cityState.trafficFineSeverity === 'padrao'
-                    ? 'bg-slate-800 text-slate-500 cursor-default'
-                    : 'bg-amber-500 hover:bg-amber-400 text-slate-950 cursor-pointer font-black'
+                    ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/50 cursor-default flex items-center justify-center gap-1.5'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer'
                 }`}
               >
-                {cityState.trafficFineSeverity === 'padrao' ? 'Em Vigor' : 'Manter Nível Padrão'}
+                {cityState.trafficFineSeverity === 'padrao'
+                  ? '✓ Opção Escolhida e Salva'
+                  : 'Trocar para Nível Padrão'}
               </button>
             </div>
 
@@ -977,15 +1077,15 @@ export const PublicPoliciesView: React.FC<PublicPoliciesViewProps> = ({
             <div
               className={`p-4 rounded-xl border transition-all ${
                 cityState.trafficFineSeverity === 'educativa'
-                  ? 'bg-emerald-500/10 border-emerald-500 shadow-md'
-                  : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                  ? 'bg-emerald-950/30 border-2 border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
+                  : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 opacity-80 hover:opacity-100'
               }`}
             >
               <div className="flex items-center justify-between mb-2">
                 <span className="font-bold text-xs text-white">Campanhas Educativas & Tolerância</span>
                 {cityState.trafficFineSeverity === 'educativa' && (
-                  <span className="text-[10px] bg-emerald-500 text-slate-950 font-black px-1.5 py-0.5 rounded">
-                    ATIVO
+                  <span className="text-[10px] bg-emerald-500 text-slate-950 font-black px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                    <CheckCircle2 className="w-3 h-3" /> ATIVO & SALVO
                   </span>
                 )}
               </div>
@@ -1009,11 +1109,13 @@ export const PublicPoliciesView: React.FC<PublicPoliciesViewProps> = ({
                 disabled={cityState.trafficFineSeverity === 'educativa'}
                 className={`w-full mt-3 py-2 rounded-lg text-xs font-bold transition-all ${
                   cityState.trafficFineSeverity === 'educativa'
-                    ? 'bg-slate-800 text-slate-500 cursor-default'
-                    : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 cursor-pointer font-black'
+                    ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/50 cursor-default flex items-center justify-center gap-1.5'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer'
                 }`}
               >
-                {cityState.trafficFineSeverity === 'educativa' ? 'Em Vigor' : 'Priorizar Trânsito Educativo'}
+                {cityState.trafficFineSeverity === 'educativa'
+                  ? '✓ Opção Escolhida e Salva'
+                  : 'Trocar para Trânsito Educativo'}
               </button>
             </div>
           </div>
