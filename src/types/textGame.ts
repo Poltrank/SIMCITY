@@ -6,7 +6,8 @@ export type ActionCategory =
   | 'turismo_cultura'
   | 'industria_empregos'
   | 'servicos_publicos'
-  | 'politica_camara';
+  | 'politica_camara'
+  | 'habitacao_mobilidade';
 
 export interface MunicipalActionDef {
   id: string;
@@ -224,6 +225,17 @@ export interface PrefeitoCityState {
 
   // Detalhamento Contábil de Arrecadação & Despesas
   revenueBreakdown: {
+    // Modo SimCity Arrecadação por Classe & Zona
+    resPobres?: number;
+    resMedios?: number;
+    resRicos?: number;
+    comPobres?: number;
+    comMedios?: number;
+    comRicos?: number;
+    indPobres?: number;
+    indMedios?: number;
+    indRicos?: number;
+
     iptuPobres?: number;
     iptuMedios?: number;
     iptuRicos?: number;
@@ -313,15 +325,40 @@ export interface PrefeitoCityState {
     };
   };
 
-  // Tributos & Alíquotas Municipais Progressivas (Pobres, Médios, Ricos, ISS, ITBI, Taxa Iluminação)
+  // Tributos & Alíquotas Municipais Progressivas SimCity (Residencial, Comercial, Industrial por classes Pobres, Médios e Ricos)
   taxRates: {
-    iptuPobresPercent?: number; // ex: 0.2% (baixa renda / isenção social)
-    iptuMediosPercent?: number; // ex: 1.2% (classe média residencial)
-    iptuRicosPercent?: number; // ex: 3.5% (mansões / especulação / grandes terrenos)
+    // Modo SimCity: Residencial (R)
+    resPobresPercent?: number; // R$ Habitação Popular / Baixa Renda (ex: 6.0%)
+    resMediosPercent?: number; // R$$ Classe Média (ex: 8.5%)
+    resRicosPercent?: number; // R$$$ Mansões & Alta Renda (ex: 11.0%)
+    // Modo SimCity: Comercial (C)
+    comPobresPercent?: number; // C$ Comércio Básico, Mercadinhos & Ambulantes (ex: 7.0%)
+    comMediosPercent?: number; // C$$ Comércio Médio, Galerias & Serviços (ex: 8.5%)
+    comRicosPercent?: number; // C$$$ Grandes Redes, Shoppings & Bancos (ex: 10.5%)
+    // Modo SimCity: Industrial (I)
+    indPobresPercent?: number; // I-P Indústria Pesada / Sucata / Poluente (ex: 8.5%)
+    indMediosPercent?: number; // I-M Indústria Manufatureira / Fábricas (ex: 8.5%)
+    indRicosPercent?: number; // I-HT Alta Tecnologia / Inovação Limpa (ex: 7.0%)
+
+    // Tributos Nacionais & Legado
+    iptuPobresPercent?: number;
+    iptuMediosPercent?: number;
+    iptuRicosPercent?: number;
     iptuPercent: number; // alíquota base ou média
     issPercent: number; // ex: 3.5% (mínimo 2%, máximo 5% pela CF/88)
     itbiPercent: number; // ex: 2.0%
     taxaIluminacaoCip: number; // ex: R$ 18.00 por economia
+  };
+
+  // Obras Estruturantes de Habitação (COHAB) & Mobilidade (Metrô, Trem, BRT)
+  infrastructureWorks?: {
+    cohabHousingProjects: number; // Conjuntos habitacionais construídos
+    cohabUnitsBuilt: number; // Total de moradias entregues
+    metroLinesKm: number; // Linhas de metrô subterrâneo em km
+    metroStationsCount: number; // Estações de metrô
+    trainVltLinesKm: number; // Linhas de trem metropolitano / VLT em km
+    brtCorridorsKm: number; // Corredores exclusivos de ônibus BRT em km
+    brtTerminalsCount: number; // Terminais de integração urbana
   };
 
   // Empréstimos Intermunicipais Concedidos ou Tomados

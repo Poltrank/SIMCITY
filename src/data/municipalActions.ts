@@ -656,6 +656,126 @@ const RAW_MUNICIPAL_ACTIONS: MunicipalActionDef[] = [
     expectedOutcome: 'Popularidade +14%, maior engajamento cívico e eficiência no gasto público.',
     riskFactor: 'Baixo',
   },
+
+  // ==========================================
+  // 7. HABITAÇÃO COHAB, METRÔ & MOBILIDADE URBANA (SIMCITY)
+  // ==========================================
+  {
+    id: 'cohab_conjunto_habitacional',
+    title: 'Construção de Conjunto Habitacional COHAB (Minha Casa Minha Vida)',
+    category: 'habitacao_mobilidade',
+    categoryLabel: 'Habitação & Mobilidade',
+    badge: '🏢 COHAB 1.500 Aptos',
+    shortDesc: 'Edifica condomínios populares verticais com praça, saneamento completo e creche integrada.',
+    fullDesc:
+      'Grande projeto habitacional municipal executado pela COHAB. Transfere famílias de palafitas e áreas de encosta para blocos modernos de apartamentos com escritura registrada e IPTU social.',
+    cost: 480000,
+    durationMs: 60000,
+    requirements: {
+      minTreasury: 480000,
+    },
+    bureaucracyPhases: [
+      { second: 0, label: 'Desapropriação e terraplanagem do terreno público da COHAB', department: 'Sec. de Habitação' },
+      { second: 15, label: 'Fundações, lajes e alvenaria dos blocos de edifícios residenciais', department: 'Sec. de Obras' },
+      { second: 30, label: 'Instalação de redes de água tratada, esgoto, gás e iluminação LED', department: 'SANEMAP' },
+      { second: 45, label: 'Sorteio público das unidades e entrega solene das chaves aos moradores', department: 'Gabinete do Prefeito' },
+    ],
+    expectedOutcome: '+1.500 moradias populares, reduz o déficit habitacional, atrai novos moradores (+3.800 hab) e aprovação popular +16%.',
+    riskFactor: 'Baixo',
+  },
+  {
+    id: 'cohab_urbanizacao_favelas',
+    title: 'Programa COHAB de Urbanização de Favelas & Regularização Fundiária',
+    category: 'habitacao_mobilidade',
+    categoryLabel: 'Habitação & Mobilidade',
+    badge: '🏡 Urbanização & Escrituras',
+    shortDesc: 'Drenagem de vielas, contenção de encostas, água encanada e entrega de títulos de posse.',
+    fullDesc:
+      'Garante que as comunidades periféricas se transformem em bairros com dignidade, permitindo a entrada de ambulâncias do SAMU, viaturas da Guarda e caminhões de coleta de lixo.',
+    cost: 280000,
+    durationMs: 60000,
+    requirements: {
+      minTreasury: 280000,
+    },
+    bureaucracyPhases: [
+      { second: 0, label: 'Topografia e mapeamento geológico das áreas de risco de desabamento', department: 'Defesa Civil' },
+      { second: 15, label: 'Muros de gabião, escadarias drenantes e canalização de esgoto', department: 'COHAB' },
+      { second: 30, label: 'Asfaltamento de acessos principais e iluminação pública inteligente', department: 'Sec. de Infraestrutura' },
+      { second: 45, label: 'Entrega formal de escrituras e registros de imóvel em cartório', department: 'Gabinete do Prefeito' },
+    ],
+    expectedOutcome: 'Zera riscos de soterramento, +800 habitações regularizadas, eleva segurança e inclusão social.',
+    riskFactor: 'Baixo',
+  },
+  {
+    id: 'metro_linha_subterranea',
+    title: 'Megaobra da Linha 1 do Metrô Subterrâneo Municipal',
+    category: 'habitacao_mobilidade',
+    categoryLabel: 'Habitação & Mobilidade',
+    badge: '🚇 Metrô Subterrâneo',
+    shortDesc: 'Túneis de 10km escavados por tatuzão, 8 estações modernas e capacidade para 120.000 passageiros/dia.',
+    fullDesc:
+      'A maior obra viária da história do município! Conecta a periferia de alta densidade ao centro financeiro e comercial em 15 minutos, eliminando gargalos de trânsito e poluição.',
+    cost: 2400000,
+    durationMs: 60000,
+    requirements: {
+      minTreasury: 2400000,
+      minPopulation: 35000,
+    },
+    bureaucracyPhases: [
+      { second: 0, label: 'Montagem do tatuzão (Shield TBM) e escavação dos túneis sob as avenidas', department: 'Consórcio Metroviário' },
+      { second: 15, label: 'Construção subterrânea das 8 estações e plataformas com portas de vidro', department: 'Sec. de Transportes' },
+      { second: 30, label: 'Eletrificação por terceiro trilho e testes de segurança automatizados', department: 'Engenharia de Tráfego' },
+      { second: 45, label: 'Primeira viagem inaugural do Metrô com o Prefeito e lideranças', department: 'Gabinete do Prefeito' },
+    ],
+    expectedOutcome: '10km de metrô, 8 estações, transporta 120.000 pessoas/dia, trânsito cai 40%, comércio e ISS disparam (+R$ 180.000/mês).',
+    riskFactor: 'Médio',
+  },
+  {
+    id: 'trem_metropolitano_vlt',
+    title: 'Implantação de Trem Metropolitano / VLT Elétrico de Superfície',
+    category: 'habitacao_mobilidade',
+    categoryLabel: 'Habitação & Mobilidade',
+    badge: '🚊 Trem VLT Urbano',
+    shortDesc: 'Rede sobre trilhos de 14km com composições elétricas conectando pólos industriais e aeroporto.',
+    fullDesc:
+      'Alternativa moderna e silenciosa aos combustíveis fósseis. Reativa antigos leitos ferroviários e expande novos ramais urbanos com ar-condicionado e integração tarifária.',
+    cost: 950000,
+    durationMs: 60000,
+    requirements: {
+      minTreasury: 950000,
+    },
+    bureaucracyPhases: [
+      { second: 0, label: 'Assentamento de dormentes de concreto e trilhos soldados contínuos', department: 'Sec. de Mobilidade' },
+      { second: 15, label: 'Subestações retificadoras e cabeamento aéreo de alimentação elétrica', department: 'Companhia de Trens' },
+      { second: 30, label: 'Chegada dos trens VLT articulados e capacitação de maquinistas', department: 'Sec. de Obras' },
+      { second: 45, label: 'Início da operação comercial integrada com bilhete único', department: 'Gabinete do Prefeito' },
+    ],
+    expectedOutcome: '14km de trilhos, transporta 55.000 passageiros/dia, valoriza bairros periféricos e atrai novos polos de emprego.',
+    riskFactor: 'Baixo',
+  },
+  {
+    id: 'corredor_brt_onibus',
+    title: 'Corredor Exclusivo de Ônibus BRT com Faixa Dedicada & Estações Tubo',
+    category: 'habitacao_mobilidade',
+    categoryLabel: 'Habitação & Mobilidade',
+    badge: '🚌 Corredor BRT 18km',
+    shortDesc: '18km de canaletas exclusivas segregadas com ônibus biarticulados elétricos e embarque rápido.',
+    fullDesc:
+      'Implantado nos principais eixos viários, garante que os coletivos não fiquem presos no congestionamento. Reduz em 60% o tempo gasto no deslocamento diário do trabalhador.',
+    cost: 520000,
+    durationMs: 60000,
+    requirements: {
+      minTreasury: 520000,
+    },
+    bureaucracyPhases: [
+      { second: 0, label: 'Fresagem e pavimentação em concreto rígido das canaletas exclusivas', department: 'Sec. de Infraestrutura' },
+      { second: 15, label: 'Montagem das estações tubo com ar-condicionado e catracas pré-embarque', department: 'Consórcio BRT' },
+      { second: 30, label: 'Entrega da frota de 40 ônibus biarticulados com Wi-Fi e ar', department: 'Sec. de Transportes' },
+      { second: 45, label: 'Ativação dos semáforos inteligentes com prioridade de onda verde para o BRT', department: 'Gabinete do Prefeito' },
+    ],
+    expectedOutcome: '18km de BRT, 40 biarticulados, tempo de viagem cai pela metade, satisfação dos usuários sobe para 88%.',
+    riskFactor: 'Baixo',
+  },
 ];
 
 export const MUNICIPAL_ACTIONS: MunicipalActionDef[] = RAW_MUNICIPAL_ACTIONS.map((action) => {

@@ -209,7 +209,7 @@ export const INITIAL_CORPORATE_OFFERS: CorporateOffer[] = [
 ];
 
 export function calculateInGameDate(
-  gameStartRealTimestamp: number,
+  gameStartRealTimestamp?: number,
   currentRealTimestamp: number = Date.now()
 ): {
   day: number;
@@ -220,16 +220,16 @@ export function calculateInGameDate(
   daysPassed: number;
   dateStr: string;
 } {
-  const elapsedMs = Math.max(0, currentRealTimestamp - gameStartRealTimestamp);
-  const daysPassed = Math.floor(elapsedMs / REAL_MS_PER_IN_GAME_DAY);
+  // Sincronização direta com a vida real: a data do jogo acompanha rigorosamente o calendário real!
+  const realDate = new Date(currentRealTimestamp);
+  const day = realDate.getDate();
+  const month = realDate.getMonth() + 1; // 1 a 12
+  const monthName = MONTH_NAMES[realDate.getMonth()] || 'Setembro';
+  const year = realDate.getFullYear();
 
-  // Inicia especificamente no dia 15 de setembro de 2026 (mês 8 no Date 0-index do JS)
-  const date = new Date(GAME_START_YEAR, GAME_START_MONTH - 1, GAME_START_DAY + daysPassed);
-
-  const day = date.getDate();
-  const month = date.getMonth() + 1; // 1 a 12
-  const monthName = MONTH_NAMES[date.getMonth()];
-  const year = date.getFullYear();
+  const startTs = gameStartRealTimestamp || currentRealTimestamp;
+  const elapsedMs = Math.max(0, currentRealTimestamp - startTs);
+  const daysPassed = Math.floor(elapsedMs / (24 * 60 * 60 * 1000));
   const termMonth = Math.floor(daysPassed / 30) + 1;
   const dateStr = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
 
@@ -325,6 +325,32 @@ export function sanitizePrefeitoState(state: PrefeitoCityState): PrefeitoCitySta
       goldReserveKg: 0,
       fuelDiscountActive: false,
       gasDiscountPercent: 0,
+    },
+    // Obras Habitacionais COHAB e Mobilidade (Metrô, Trem, BRT)
+    infrastructureWorks: state.infrastructureWorks ?? {
+      cohabHousingProjects: 2,
+      cohabUnitsBuilt: 3400,
+      metroLinesKm: 0,
+      metroStationsCount: 0,
+      trainVltLinesKm: 8,
+      brtCorridorsKm: 12,
+      brtTerminalsCount: 3,
+    },
+    // Alíquotas SimCity & Nacionais
+    taxRates: {
+      resPobresPercent: state.taxRates?.resPobresPercent ?? 6.0,
+      resMediosPercent: state.taxRates?.resMediosPercent ?? 8.5,
+      resRicosPercent: state.taxRates?.resRicosPercent ?? 11.0,
+      comPobresPercent: state.taxRates?.comPobresPercent ?? 7.0,
+      comMediosPercent: state.taxRates?.comMediosPercent ?? 8.5,
+      comRicosPercent: state.taxRates?.comRicosPercent ?? 10.5,
+      indPobresPercent: state.taxRates?.indPobresPercent ?? 8.5,
+      indMediosPercent: state.taxRates?.indMediosPercent ?? 8.5,
+      indRicosPercent: state.taxRates?.indRicosPercent ?? 7.0,
+      iptuPercent: state.taxRates?.iptuPercent ?? 1.2,
+      issPercent: state.taxRates?.issPercent ?? 3.5,
+      itbiPercent: state.taxRates?.itbiPercent ?? 2.0,
+      taxaIluminacaoCip: state.taxRates?.taxaIluminacaoCip ?? 18.0,
     },
     economicCycle: {
       ...currentCycle,
@@ -586,10 +612,29 @@ export function createInitialPrefeitoState(setup?: InitialMayorSetup): PrefeitoC
     },
 
     taxRates: {
+      resPobresPercent: 6.0,
+      resMediosPercent: 8.5,
+      resRicosPercent: 11.0,
+      comPobresPercent: 7.0,
+      comMediosPercent: 8.5,
+      comRicosPercent: 10.5,
+      indPobresPercent: 8.5,
+      indMediosPercent: 8.5,
+      indRicosPercent: 7.0,
       iptuPercent: 1.2,
       issPercent: 3.5,
       itbiPercent: 2.0,
       taxaIluminacaoCip: 18.0,
+    },
+
+    infrastructureWorks: {
+      cohabHousingProjects: 2,
+      cohabUnitsBuilt: 3400,
+      metroLinesKm: 0,
+      metroStationsCount: 0,
+      trainVltLinesKm: 8,
+      brtCorridorsKm: 12,
+      brtTerminalsCount: 3,
     },
 
     intermunicipalLoans: [],
@@ -735,6 +780,18 @@ export function updateDispatchesClock(
   let nextHealth = state.healthIndex;
   let nextEducation = state.educationIndex;
   let nextInfrastructure = state.infrastructureIndex;
+  let nextHousingUnits = state.housingUnits || 16800;
+  let nextInfraWorks = {
+    ...(state.infrastructureWorks || {
+      cohabHousingProjects: 2,
+      cohabUnitsBuilt: 3400,
+      metroLinesKm: 0,
+      metroStationsCount: 0,
+      trainVltLinesKm: 8,
+      brtCorridorsKm: 12,
+      brtTerminalsCount: 3,
+    }),
+  };
   const completedIds = [...state.completedActionIds];
   let gazetteArticlesToAdd: GazetteArticle[] = [];
 
@@ -786,6 +843,23 @@ export function updateDispatchesClock(
       if (outcome.impacts.waterPercentChange) nextWaterCoverage = Math.min(100, nextWaterCoverage + outcome.impacts.waterPercentChange);
       if (outcome.impacts.fiscalRatingChange) nextFiscalRating = outcome.impacts.fiscalRatingChange;
       if (outcome.impacts.debtChange) nextDebt = Math.max(0, nextDebt + outcome.impacts.debtChange);
+      if (outcome.impacts.housingUnitsChange) nextHousingUnits += outcome.impacts.housingUnitsChange;
+
+      // Obras específicas de infraestrutura e habitação
+      if (dispatch.actionId === 'cohab_conjunto_habitacional') {
+        nextInfraWorks.cohabHousingProjects = (nextInfraWorks.cohabHousingProjects || 0) + 1;
+        nextInfraWorks.cohabUnitsBuilt = (nextInfraWorks.cohabUnitsBuilt || 0) + 1500;
+      } else if (dispatch.actionId === 'cohab_urbanizacao_favelas') {
+        nextInfraWorks.cohabUnitsBuilt = (nextInfraWorks.cohabUnitsBuilt || 0) + 600;
+      } else if (dispatch.actionId === 'metro_linha_subterranea') {
+        nextInfraWorks.metroLinesKm = (nextInfraWorks.metroLinesKm || 0) + 10;
+        nextInfraWorks.metroStationsCount = (nextInfraWorks.metroStationsCount || 0) + 8;
+      } else if (dispatch.actionId === 'trem_metropolitano_vlt') {
+        nextInfraWorks.trainVltLinesKm = (nextInfraWorks.trainVltLinesKm || 0) + 14;
+      } else if (dispatch.actionId === 'corredor_brt_onibus') {
+        nextInfraWorks.brtCorridorsKm = (nextInfraWorks.brtCorridorsKm || 0) + 18;
+        nextInfraWorks.brtTerminalsCount = (nextInfraWorks.brtTerminalsCount || 0) + 4;
+      }
 
       // Derived resource taxes
       if (outcome.impacts.oilBpdChange) {
@@ -860,6 +934,8 @@ export function updateDispatchesClock(
     waterCoveragePercent: nextWaterCoverage,
     fiscalRating: nextFiscalRating,
     debt: nextDebt,
+    housingUnits: nextHousingUnits,
+    infrastructureWorks: nextInfraWorks,
     completedActionIds: completedIds,
     activeDispatches: updatedDispatches,
     recentOutcomes: [...newCompletedOutcomes, ...state.recentOutcomes].slice(0, 30),
@@ -1328,6 +1404,158 @@ function resolveDispatchOutcome(
       };
     }
 
+    // =============================
+    // 9. HABITAÇÃO: COHAB E URBANIZAÇÃO DE FAVELAS
+    // =============================
+    case 'cohab_conjunto_habitacional': {
+      return {
+        id: outcomeId,
+        actionId: dispatch.actionId,
+        actionTitle: dispatch.title,
+        category: dispatch.category,
+        success: true,
+        isExceptional: true,
+        headline: 'SONHO DA CASA PRÓPRIA: Conjunto COHAB Entrega 1.500 Apartamentos',
+        officialGazetteExcerpt:
+          'Chaves entregues em grande cerimônia no novo Conjunto Habitacional COHAB. Famílias cadastradas no programa de habitação de interesse social comemoram moradia digna com água, luz e transporte público.',
+        detailedReport: [
+          '🏢 +1.500 apartamentos populares entregues a famílias da fila da habitação.',
+          '📉 Déficit habitacional reduzido drasticamente em toda a comarca.',
+          '👷 700 postos de trabalho gerados durante as obras da construção civil.',
+          '📈 Aprovação popular do Prefeito sobe expressivamente entre os trabalhadores.',
+        ],
+        impacts: {
+          housingUnitsChange: 1500,
+          jobsChange: 700,
+          unemploymentChange: -0.6,
+          approvalChange: 16,
+          councilSupportChange: 9,
+          monthlyRevenueChange: 45000,
+        },
+        timestamp: Date.now(),
+        read: false,
+      };
+    }
+
+    case 'cohab_urbanizacao_favelas': {
+      return {
+        id: outcomeId,
+        actionId: dispatch.actionId,
+        actionTitle: dispatch.title,
+        category: dispatch.category,
+        success: true,
+        isExceptional: false,
+        headline: 'Dignidade Urbana: Regularização Fundiária e Asfalto em Comunidades COHAB',
+        officialGazetteExcerpt:
+          'O programa municipal de urbanização concluiu obras de drenagem, saneamento e contenção de encostas em três comunidades. 600 lotes receberam escrituras definitivas registradas em cartório.',
+        detailedReport: [
+          '🏠 600 títulos de propriedade entregues a moradores vulneráveis.',
+          '💧 Redes de água encanada e esgoto instaladas nas vielas.',
+          '🛡️ Risco de desabamento de encostas eliminado pela Defesa Civil.',
+          '📈 Inclusão social e cidadania fortalecem a gestão municipal.',
+        ],
+        impacts: {
+          housingUnitsChange: 600,
+          waterPercentChange: 6,
+          approvalChange: 12,
+          councilSupportChange: 6,
+          monthlyRevenueChange: 25000,
+        },
+        timestamp: Date.now(),
+        read: false,
+      };
+    }
+
+    // =============================
+    // 10. MOBILIDADE: METRÔ, TREM E BRT
+    // =============================
+    case 'metro_linha_subterranea': {
+      return {
+        id: outcomeId,
+        actionId: dispatch.actionId,
+        actionTitle: dispatch.title,
+        category: dispatch.category,
+        success: true,
+        isExceptional: true,
+        headline: 'METRÔ INAUGURADO: Linha 1 Subterrânea Começa a Operar com 8 Estações',
+        officialGazetteExcerpt:
+          'A maior obra da história do município foi homologada e aberta ao público. O metrô interliga o centro financeiro aos bairros mais populosos em menos de 15 minutos, revolucionando a produtividade local.',
+        detailedReport: [
+          '🚇 10 km de trilhos subterrâneos e 8 estações modernas climatizadas.',
+          '⏱️ Tempo de deslocamento dos trabalhadores cai em até 65%.',
+          '💼 2.800 novos empregos no comércio das estações e manutenção.',
+          '📈 Cidade alcança patamar de metrópole desenvolvida no cenário nacional.',
+        ],
+        impacts: {
+          jobsChange: 2800,
+          unemploymentChange: -2.1,
+          monthlyRevenueChange: 280000,
+          approvalChange: 22,
+          councilSupportChange: 14,
+        },
+        timestamp: Date.now(),
+        read: false,
+      };
+    }
+
+    case 'trem_metropolitano_vlt': {
+      return {
+        id: outcomeId,
+        actionId: dispatch.actionId,
+        actionTitle: dispatch.title,
+        category: dispatch.category,
+        success: true,
+        isExceptional: false,
+        headline: 'Trem Metropolitano VLT Conecta Bairros Periféricos com Trilhos Elétricos',
+        officialGazetteExcerpt:
+          'Com tecnologia sustentável e zero emissão de carbono, o VLT entrou em circulação nos 14 km de linha férrea modernizada, desafogando avenidas e reduzindo acidentes de trânsito.',
+        detailedReport: [
+          '🚊 14 km de trilhos de VLT de superfície conectando a periferia ao centro.',
+          '🌿 Redução maciça da poluição do ar e desafogamento do tráfego.',
+          '👷 950 empregos permanentes de operação e maquinistas.',
+          '💰 Aumento de arrecadação comercial no entorno das paradas.',
+        ],
+        impacts: {
+          jobsChange: 950,
+          unemploymentChange: -0.9,
+          monthlyRevenueChange: 95000,
+          approvalChange: 14,
+          councilSupportChange: 8,
+        },
+        timestamp: Date.now(),
+        read: false,
+      };
+    }
+
+    case 'corredor_brt_onibus': {
+      return {
+        id: outcomeId,
+        actionId: dispatch.actionId,
+        actionTitle: dispatch.title,
+        category: dispatch.category,
+        success: true,
+        isExceptional: false,
+        headline: 'Corredores Exclusivos BRT Implantados com Estações Tubo e Embarque Nível',
+        officialGazetteExcerpt:
+          'A prefeitura inaugurou 18 km de faixas exclusivas para ônibus articulados. O sistema BRT permite embarque pré-pago em estações tubo, reduzindo paradas em semáforos e viagens 40% mais velozes.',
+        detailedReport: [
+          '🚌 18 km de pistas exclusivas de concreto e 4 novos terminais de integração.',
+          '⚡ Ônibus biarticulados com Wi-Fi e ar-condicionado operando.',
+          '👷 600 postos de trabalho para motoristas e fiscais.',
+          '👍 Elogios imediatos da população que depende de transporte público.',
+        ],
+        impacts: {
+          jobsChange: 600,
+          unemploymentChange: -0.5,
+          monthlyRevenueChange: 65000,
+          approvalChange: 11,
+          councilSupportChange: 7,
+        },
+        timestamp: Date.now(),
+        read: false,
+      };
+    }
+
     // Default fallback outcome
     default: {
       const isSuccess = roll >= 20;
@@ -1556,13 +1784,46 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
     meioAmbiente: { budgetMonthly: 20000, focus: 'coleta_seletiva', effectiveness: 60 },
   };
 
-  // 1. Receitas Detalhadas
-  // IPTU Progressivo por Classe Social (Pobres, Médios, Ricos)
-  const iptuBase = 145000 * (state.population / 48500) * (state.infrastructureIndex / 58);
-  const iptuPobres = Math.round(iptuBase * 0.20 * (iptuPobresRate / 0.2));
-  const iptuMedios = Math.round(iptuBase * 0.50 * (iptuMediosRate / 1.2));
-  const iptuRicos = Math.round(iptuBase * 0.30 * (iptuRicosRate / 3.5));
-  const iptu = iptuPobres + iptuMedios + iptuRicos;
+  // 1. Receitas Detalhadas - Modo SimCity & Progressividade
+  const resPobresRate = taxRates.resPobresPercent ?? 6.0;
+  const resMediosRate = taxRates.resMediosPercent ?? 8.5;
+  const resRicosRate = taxRates.resRicosPercent ?? 11.0;
+
+  const comPobresRate = taxRates.comPobresPercent ?? 7.0;
+  const comMediosRate = taxRates.comMediosPercent ?? 8.5;
+  const comRicosRate = taxRates.comRicosPercent ?? 10.5;
+
+  const indPobresRate = taxRates.indPobresPercent ?? 8.5;
+  const indMediosRate = taxRates.indMediosPercent ?? 8.5;
+  const indRicosRate = taxRates.indRicosPercent ?? 7.0;
+
+  const popFactor = (state.population / 48500);
+  const infraFactor = (state.infrastructureIndex / 58);
+  const jobsFactor = (state.jobs / 21200);
+
+  // Impostos Residenciais SimCity (R$, R$$, R$$$)
+  const resPobres = Math.round(35000 * popFactor * (resPobresRate / 6.0));
+  const resMedios = Math.round(75000 * popFactor * infraFactor * (resMediosRate / 8.5));
+  const resRicos = Math.round(55000 * popFactor * infraFactor * (resRicosRate / 11.0));
+  const totalResidencial = resPobres + resMedios + resRicos;
+
+  // Impostos Comerciais SimCity (C$, C$$, C$$$)
+  const comPobres = Math.round(28000 * jobsFactor * (comPobresRate / 7.0));
+  const comMedios = Math.round(62000 * jobsFactor * (comMediosRate / 8.5));
+  const comRicos = Math.round(48000 * jobsFactor * infraFactor * (comRicosRate / 10.5));
+  const totalComercial = comPobres + comMedios + comRicos;
+
+  // Impostos Industriais SimCity (I-P, I-M, I-HT)
+  const indPobres = Math.round(32000 * jobsFactor * (indPobresRate / 8.5));
+  const indMedios = Math.round(45000 * jobsFactor * (indMediosRate / 8.5));
+  const indRicos = Math.round(38000 * (state.telecomGeneration === '5G' ? 1.4 : 1.0) * (indRicosRate / 7.0));
+  const totalIndustrial = indPobres + indMedios + indRicos;
+
+  // Harmonização de IPTU e ISS
+  const iptu = totalResidencial;
+  const iptuPobres = resPobres;
+  const iptuMedios = resMedios;
+  const iptuRicos = resRicos;
 
   // Receita de Empresas Atraídas para a Cidade
   let impostosEmpresasInstaladas = 0;
@@ -1578,11 +1839,10 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
     issTelecomDigital = 22000;
   }
 
-  // ISS varia com alíquota (2% a 5%), atividade econômica, turismo e empresas instaladas
+  // ISS e Setor Produtivo (Comércio + Indústria + Telecom + Empresas atraídas)
   const wageBoostToCommerce = Math.max(0, Math.round((minWage - 1412) * 50));
   const touristBoost = Math.round(state.touristsPerMonth * 4.2);
-  const issBase = 165000 * (state.jobs / 21200) + touristBoost + wageBoostToCommerce;
-  const iss = Math.round(issBase * (taxRates.issPercent / 3.5)) + impostosEmpresasInstaladas + issTelecomDigital;
+  const iss = totalComercial + totalIndustrial + impostosEmpresasInstaladas + issTelecomDigital + touristBoost + wageBoostToCommerce;
 
   // FPM e ICMS (Transferências constitucionais do Estado e União escalam com população)
   let fpmMultiplier = 1.0;
@@ -1807,6 +2067,18 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
       gasDiscountPercent: fatorCombustivelFrota < 1.0 ? 25 : 0,
     },
     revenueBreakdown: {
+      resPobres,
+      resMedios,
+      resRicos,
+      totalResidencial,
+      comPobres,
+      comMedios,
+      comRicos,
+      totalComercial,
+      indPobres,
+      indMedios,
+      indRicos,
+      totalIndustrial,
       iptuPobres,
       iptuMedios,
       iptuRicos,
@@ -2745,24 +3017,39 @@ export function setDepartmentBudgetPolicy(
 }
 
 // ==========================================
-// CONTROLE DE TRIBUTOS E ALÍQUOTAS (IPTU POBRES, MÉDIOS, RICOS, ISS, ITBI, CIP)
+// CONTROLE DE TRIBUTOS E ALÍQUOTAS SIMCITY (RESIDENCIAL, COMERCIAL, INDUSTRIAL POR CLASSES)
 // ==========================================
 export function setTaxRatesPolicy(
   state: PrefeitoCityState,
   newTaxRates: {
+    resPobresPercent?: number;
+    resMediosPercent?: number;
+    resRicosPercent?: number;
+    comPobresPercent?: number;
+    comMediosPercent?: number;
+    comRicosPercent?: number;
+    indPobresPercent?: number;
+    indMediosPercent?: number;
+    indRicosPercent?: number;
     iptuPobresPercent?: number;
     iptuMediosPercent?: number;
     iptuRicosPercent?: number;
-    iptuPercent: number;
-    issPercent: number;
-    itbiPercent: number;
-    taxaIluminacaoCip: number;
+    iptuPercent?: number;
+    issPercent?: number;
+    itbiPercent?: number;
+    taxaIluminacaoCip?: number;
   }
 ): { state: PrefeitoCityState; message: string } {
   const currentRates = state.taxRates || {
-    iptuPobresPercent: 0.2,
-    iptuMediosPercent: 1.2,
-    iptuRicosPercent: 3.5,
+    resPobresPercent: 6.0,
+    resMediosPercent: 8.5,
+    resRicosPercent: 11.0,
+    comPobresPercent: 7.0,
+    comMediosPercent: 8.5,
+    comRicosPercent: 10.5,
+    indPobresPercent: 8.5,
+    indMediosPercent: 8.5,
+    indRicosPercent: 7.0,
     iptuPercent: 1.2,
     issPercent: 3.5,
     itbiPercent: 2.0,
@@ -2770,20 +3057,28 @@ export function setTaxRatesPolicy(
   };
 
   let approvalChange = 0;
-  if (newTaxRates.iptuPobresPercent !== undefined && currentRates.iptuPobresPercent !== undefined) {
-    if (newTaxRates.iptuPobresPercent > currentRates.iptuPobresPercent) approvalChange -= 7;
-    else if (newTaxRates.iptuPobresPercent < currentRates.iptuPobresPercent) approvalChange += 8;
+  // Residencial
+  if (newTaxRates.resPobresPercent !== undefined) {
+    if (newTaxRates.resPobresPercent > (currentRates.resPobresPercent ?? 6.0)) approvalChange -= 6;
+    else if (newTaxRates.resPobresPercent < (currentRates.resPobresPercent ?? 6.0)) approvalChange += 7;
   }
-  if (newTaxRates.iptuRicosPercent !== undefined && currentRates.iptuRicosPercent !== undefined) {
-    if (newTaxRates.iptuRicosPercent > currentRates.iptuRicosPercent) approvalChange += 4;
-    else if (newTaxRates.iptuRicosPercent < currentRates.iptuRicosPercent) approvalChange -= 3;
+  if (newTaxRates.resMediosPercent !== undefined) {
+    if (newTaxRates.resMediosPercent > (currentRates.resMediosPercent ?? 8.5)) approvalChange -= 4;
+    else if (newTaxRates.resMediosPercent < (currentRates.resMediosPercent ?? 8.5)) approvalChange += 4;
   }
-  if (newTaxRates.iptuMediosPercent !== undefined && currentRates.iptuMediosPercent !== undefined) {
-    if (newTaxRates.iptuMediosPercent > currentRates.iptuMediosPercent) approvalChange -= 4;
-    else if (newTaxRates.iptuMediosPercent < currentRates.iptuMediosPercent) approvalChange += 4;
+  if (newTaxRates.resRicosPercent !== undefined) {
+    if (newTaxRates.resRicosPercent > (currentRates.resRicosPercent ?? 11.0)) approvalChange += 3;
+    else if (newTaxRates.resRicosPercent < (currentRates.resRicosPercent ?? 11.0)) approvalChange -= 2;
   }
-  if (newTaxRates.issPercent > currentRates.issPercent) approvalChange -= 3;
-  else if (newTaxRates.issPercent < currentRates.issPercent) approvalChange += 4;
+  // Comercial & Industrial
+  if (newTaxRates.comPobresPercent !== undefined) {
+    if (newTaxRates.comPobresPercent > (currentRates.comPobresPercent ?? 7.0)) approvalChange -= 4;
+    else if (newTaxRates.comPobresPercent < (currentRates.comPobresPercent ?? 7.0)) approvalChange += 4;
+  }
+  if (newTaxRates.indPobresPercent !== undefined) {
+    if (newTaxRates.indPobresPercent > (currentRates.indPobresPercent ?? 8.5)) approvalChange -= 3;
+    else if (newTaxRates.indPobresPercent < (currentRates.indPobresPercent ?? 8.5)) approvalChange += 3;
+  }
 
   const updatedRates = {
     ...currentRates,
@@ -2797,12 +3092,12 @@ export function setTaxRatesPolicy(
     gazetteFeed: [
       {
         id: 'gaz_tax_' + Date.now(),
-        title: `Código Tributário: Reforma das Alíquotas Municipais (IPTU Pobres ${updatedRates.iptuPobresPercent ?? 0.2}%, Médios ${updatedRates.iptuMediosPercent ?? 1.2}%, Ricos ${updatedRates.iptuRicosPercent ?? 3.5}%)`,
+        title: `Reforma Tributária SimCity: Decreto de Alíquotas por Classes Sociais & Zonas`,
         source: 'Diário Oficial',
         type: 'decreto',
         dateStr: `${String(state.month).padStart(2, '0')}/${state.year}`,
-        body: `O Executivo Municipal promulgou as novas alíquotas tributárias: IPTU Pobres ${updatedRates.iptuPobresPercent ?? 0.2}%, IPTU Médios ${updatedRates.iptuMediosPercent ?? 1.2}%, IPTU Grandes Mansões ${updatedRates.iptuRicosPercent ?? 3.5}%, ISS ${updatedRates.issPercent}% e Taxa de Iluminação R$ ${updatedRates.taxaIluminacaoCip.toFixed(2)}.`,
-        impactSummary: `Nova calibragem tributária progressiva promulgada pelo Prefeito`,
+        body: `O Prefeito promulgou o novo Código Tributário SimCity: Residencial (Pobres: ${updatedRates.resPobresPercent ?? 6}%, Médios: ${updatedRates.resMediosPercent ?? 8.5}%, Ricos: ${updatedRates.resRicosPercent ?? 11}%), Comercial (Pequenos: ${updatedRates.comPobresPercent ?? 7}%, Médios: ${updatedRates.comMediosPercent ?? 8.5}%, Grandes Redes: ${updatedRates.comRicosPercent ?? 10.5}%), e Industrial (Pesada: ${updatedRates.indPobresPercent ?? 8.5}%, Manufatura: ${updatedRates.indMediosPercent ?? 8.5}%, Alta Tecnologia: ${updatedRates.indRicosPercent ?? 7}%).`,
+        impactSummary: `Sistema tributário progressivo por zonas ativado | Aprovação ${approvalChange >= 0 ? '+' : ''}${approvalChange}%`,
         timestamp: Date.now(),
       },
       ...state.gazetteFeed.slice(0, 29),
@@ -2812,7 +3107,7 @@ export function setTaxRatesPolicy(
   const finalState = recalculateMunicipalFinances(updatedState);
   return {
     state: finalState,
-    message: `Código tributário municipal progressivo atualizado! Receitas e impacto popular recalculados.`,
+    message: `Código Tributário SimCity sancionado com sucesso! Alíquotas de Residências, Comércio e Indústrias publicadas no Diário Oficial.`,
   };
 }
 
@@ -3210,6 +3505,159 @@ export function rejectIntermunicipalLoan(
       intermunicipalLoans: updatedLoans,
     },
     message: 'Proposta de empréstimo rejeitada formalmente.',
+  };
+}
+
+// ==========================================
+// AÇÕES DIRETAS: OBRAS HABITACIONAIS (COHAB) & MOBILIDADE URBANA
+// ==========================================
+export function buildCohabProjectAction(
+  state: PrefeitoCityState,
+  projectType: 'habitacional' | 'favelas'
+): { success: boolean; state: PrefeitoCityState; message: string } {
+  const isHabitacional = projectType === 'habitacional';
+  const cost = isHabitacional ? 420000 : 180000;
+  const unitsToAdd = isHabitacional ? 1500 : 600;
+
+  if (state.treasury < cost) {
+    return {
+      success: false,
+      state,
+      message: `Tesouro insuficiente! O projeto exige R$ ${cost.toLocaleString()}, mas a cidade possui R$ ${state.treasury.toLocaleString()}.`,
+    };
+  }
+
+  const currentWorks = state.infrastructureWorks || {
+    cohabHousingProjects: 2,
+    cohabUnitsBuilt: 3400,
+    metroLinesKm: 0,
+    metroStationsCount: 0,
+    trainVltLinesKm: 8,
+    brtCorridorsKm: 12,
+    brtTerminalsCount: 3,
+  };
+
+  const updatedWorks = {
+    ...currentWorks,
+    cohabHousingProjects: currentWorks.cohabHousingProjects + (isHabitacional ? 1 : 0),
+    cohabUnitsBuilt: currentWorks.cohabUnitsBuilt + unitsToAdd,
+  };
+
+  const newHousingUnits = (state.housingUnits || 16800) + unitsToAdd;
+  const title = isHabitacional
+    ? `COHAB: Novo Conjunto Habitacional Entregue (+${unitsToAdd} Moradias)`
+    : `COHAB: Regularização & Asfalto em Comunidades (+${unitsToAdd} Escrituras)`;
+
+  const intermediate: PrefeitoCityState = {
+    ...state,
+    treasury: state.treasury - cost,
+    housingUnits: newHousingUnits,
+    infrastructureWorks: updatedWorks,
+    approvalRating: Math.min(100, state.approvalRating + (isHabitacional ? 14 : 9)),
+    councilSupport: Math.min(100, state.councilSupport + (isHabitacional ? 7 : 5)),
+    gazetteFeed: [
+      {
+        id: 'gaz_cohab_' + Date.now(),
+        title,
+        source: 'Diário Oficial',
+        type: 'decreto',
+        dateStr: `${String(state.month).padStart(2, '0')}/${state.year}`,
+        body: isHabitacional
+          ? `O Prefeito assinou a entrega de ${unitsToAdd} novas moradias populares do programa COHAB. Com infraestrutura completa de água, luz e transporte, o projeto reduz drasticamente a fila habitacional.`
+          : `O programa COHAB de urbanização regularizou ${unitsToAdd} lotes urbanos, garantindo títulos de propriedade, canalização de esgoto e iluminação em áreas carentes.`,
+        impactSummary: `+${unitsToAdd} moradias | Déficit habitacional reduzido | Aprovação popular em alta`,
+        timestamp: Date.now(),
+      },
+      ...state.gazetteFeed.slice(0, 29),
+    ],
+  };
+
+  const finalState = recalculateMunicipalFinances(intermediate);
+  return {
+    success: true,
+    state: finalState,
+    message: `${title} realizado com sucesso!`,
+  };
+}
+
+export function buildTransitProjectAction(
+  state: PrefeitoCityState,
+  transitType: 'metro' | 'vlt' | 'brt'
+): { success: boolean; state: PrefeitoCityState; message: string } {
+  let cost = 950000;
+  let title = '';
+  let gazetteBody = '';
+  let approvalBonus = 12;
+
+  const currentWorks = state.infrastructureWorks || {
+    cohabHousingProjects: 2,
+    cohabUnitsBuilt: 3400,
+    metroLinesKm: 0,
+    metroStationsCount: 0,
+    trainVltLinesKm: 8,
+    brtCorridorsKm: 12,
+    brtTerminalsCount: 3,
+  };
+
+  const updatedWorks = { ...currentWorks };
+
+  if (transitType === 'metro') {
+    cost = 950000;
+    updatedWorks.metroLinesKm += 10;
+    updatedWorks.metroStationsCount += 8;
+    approvalBonus = 18;
+    title = 'METRÔ SUBTERRÂNEO: Expansão de Linha & 8 Novas Estações Inauguradas';
+    gazetteBody = 'As novas estações do Metrô iniciaram as operações com trens climatizados e intervalo de 3 minutos nos horários de pico, integrando bairros periféricos aos centros comerciais.';
+  } else if (transitType === 'vlt') {
+    cost = 520000;
+    updatedWorks.trainVltLinesKm += 14;
+    approvalBonus = 13;
+    title = 'TREM METROPOLITANO VLT: Mais 14 km de Trilhos Elétricos em Operação';
+    gazetteBody = 'O sistema de VLT sustentável expandiu a malha férrea de superfície, proporcionando transporte seguro, silencioso e limpo para milhares de passageiros diários.';
+  } else {
+    cost = 310000;
+    updatedWorks.brtCorridorsKm += 18;
+    updatedWorks.brtTerminalsCount += 4;
+    approvalBonus = 10;
+    title = 'CORREDOR BRT: Mais 18 km de Pistas Exclusivas & Terminais Tubo';
+    gazetteBody = 'Novos corredores expressos de ônibus articulados BRT entraram em funcionamento, encurtando o trajeto até o trabalho em 40% com embarque rápido nas estações.';
+  }
+
+  if (state.treasury < cost) {
+    return {
+      success: false,
+      state,
+      message: `Tesouro insuficiente! Esta obra de transporte exige R$ ${cost.toLocaleString()}, mas a cidade possui R$ ${state.treasury.toLocaleString()}.`,
+    };
+  }
+
+  const intermediate: PrefeitoCityState = {
+    ...state,
+    treasury: state.treasury - cost,
+    infrastructureWorks: updatedWorks,
+    infrastructureIndex: Math.min(100, state.infrastructureIndex + (transitType === 'metro' ? 8 : transitType === 'vlt' ? 5 : 4)),
+    approvalRating: Math.min(100, state.approvalRating + approvalBonus),
+    councilSupport: Math.min(100, state.councilSupport + Math.round(approvalBonus * 0.6)),
+    gazetteFeed: [
+      {
+        id: 'gaz_transit_' + Date.now(),
+        title,
+        source: 'Diário Oficial',
+        type: 'decreto',
+        dateStr: `${String(state.month).padStart(2, '0')}/${state.year}`,
+        body: gazetteBody,
+        impactSummary: `Mobilidade urbana expandida | Custo: R$ ${cost.toLocaleString()} | Índice de Infraestrutura aumentado`,
+        timestamp: Date.now(),
+      },
+      ...state.gazetteFeed.slice(0, 29),
+    ],
+  };
+
+  const finalState = recalculateMunicipalFinances(intermediate);
+  return {
+    success: true,
+    state: finalState,
+    message: `${title} executado com sucesso!`,
   };
 }
 
