@@ -45,6 +45,15 @@ export const PublicPoliciesView: React.FC<PublicPoliciesViewProps> = ({
     setSelectedWage(currentWage);
   }, [currentWage]);
 
+  // Auto-apply & auto-save wage with 350ms debounce when user adjusts slider
+  useEffect(() => {
+    if (selectedWage === currentWage) return;
+    const timer = setTimeout(() => {
+      handleApplyWage(selectedWage);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [selectedWage, currentWage]);
+
   // Cálculo simulado para o preview do salário mínimo
   const simulatedRatio = selectedWage / 1412;
   const simulatedPayroll = Math.round(260000 * simulatedRatio);
@@ -56,8 +65,10 @@ export const PublicPoliciesView: React.FC<PublicPoliciesViewProps> = ({
   const wagePresets = [
     { label: 'Padrão Nacional', wage: 1412, note: 'Piso federal vigente' },
     { label: 'Reajuste +10%', wage: 1550, note: 'Ganho real moderado' },
-    { label: 'Piso Valorizado (+24%)', wage: 1750, note: 'Aumenta compras no comércio' },
-    { label: 'Piso Cidadania (+41%)', wage: 2000, note: 'Impacto forte na LRF' },
+    { label: 'Piso Valorizado (+24%)', wage: 1750, note: 'Estímulo ao comércio' },
+    { label: 'Piso Cidadania (+41%)', wage: 2000, note: 'Forte valorização' },
+    { label: 'Piso Superior (+59%)', wage: 2250, note: 'Excelência municipal' },
+    { label: 'Piso Máximo (+77%)', wage: 2500, note: 'Teto da categoria' },
   ];
 
   const handleApplyWage = (targetWage?: number) => {
@@ -172,7 +183,7 @@ export const PublicPoliciesView: React.FC<PublicPoliciesViewProps> = ({
                   </span>
                 )}
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
                 {wagePresets.map((preset) => (
                   <button
                     key={preset.wage}
@@ -183,17 +194,17 @@ export const PublicPoliciesView: React.FC<PublicPoliciesViewProps> = ({
                     }}
                     className={`p-3 rounded-lg border text-left transition-all flex flex-col justify-between cursor-pointer ${
                       currentWage === preset.wage
-                        ? 'bg-emerald-950/40 border-emerald-500 text-white shadow-md ring-1 ring-emerald-500'
+                        ? 'bg-emerald-950/50 border-2 border-emerald-500 text-white shadow-md ring-1 ring-emerald-500'
                         : selectedWage === preset.wage
-                        ? 'bg-amber-500/15 border-amber-500 text-white shadow-sm ring-1 ring-amber-500'
+                        ? 'bg-amber-500/20 border-amber-500 text-white shadow-sm ring-1 ring-amber-500'
                         : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700'
                     }`}
                   >
                     <div>
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold">{preset.label}</span>
+                        <span className="text-[11px] font-bold">{preset.label}</span>
                         {currentWage === preset.wage && (
-                          <span className="text-[9px] bg-emerald-500 text-slate-950 font-black px-1.5 py-0.5 rounded">
+                          <span className="text-[9px] bg-emerald-500 text-slate-950 font-black px-1 py-0.5 rounded">
                             ATIVO
                           </span>
                         )}
@@ -201,44 +212,106 @@ export const PublicPoliciesView: React.FC<PublicPoliciesViewProps> = ({
                       <div className="text-sm font-black text-amber-400 mt-1">
                         R$ {preset.wage.toLocaleString()}
                       </div>
-                      <div className="text-[10px] text-slate-500 mt-0.5 truncate">{preset.note}</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5 truncate">{preset.note}</div>
                     </div>
 
                     <div
                       className={`mt-2 w-full py-1 text-[10px] font-bold rounded text-center transition-colors ${
                         currentWage === preset.wage
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                          ? 'bg-emerald-500 text-slate-950 font-black'
                           : 'bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-slate-300'
                       }`}
                     >
-                      {currentWage === preset.wage ? '✓ Opção Salva' : 'Selecionar & Salvar'}
+                      {currentWage === preset.wage ? '✓ ATIVO & SALVO' : 'Escolher & Salvar'}
                     </div>
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Slider de ajuste fino */}
+            {/* Slider de ajuste fino com botões rápidos */}
             <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
               <div className="flex justify-between items-center text-xs">
                 <span className="text-slate-400 font-medium">Ajuste Fino do Valor:</span>
-                <span className="font-mono text-amber-400 font-black text-base">
-                  R$ {selectedWage.toLocaleString()}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-amber-400 font-black text-base">
+                    R$ {selectedWage.toLocaleString()}
+                  </span>
+                  {currentWage === selectedWage && (
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded font-bold">
+                      ✓ Salvo
+                    </span>
+                  )}
+                </div>
               </div>
-              <input
-                type="range"
-                min={1300}
-                max={2500}
-                step={25}
-                value={selectedWage}
-                onChange={(e) => {
-                  const val = Number(e.target.value);
-                  setSelectedWage(val);
-                }}
-                onPointerUp={() => handleApplyWage(selectedWage)}
-                className="w-full accent-amber-500 cursor-pointer h-2 bg-slate-800 rounded-lg"
-              />
+
+              {/* Controles de botões de passo rápido para facilitar no celular */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = Math.max(1300, selectedWage - 100);
+                    setSelectedWage(next);
+                    handleApplyWage(next);
+                  }}
+                  className="px-2.5 py-1 text-xs bg-slate-900 hover:bg-slate-800 text-slate-300 rounded border border-slate-700 font-bold"
+                >
+                  - R$ 100
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = Math.max(1300, selectedWage - 50);
+                    setSelectedWage(next);
+                    handleApplyWage(next);
+                  }}
+                  className="px-2.5 py-1 text-xs bg-slate-900 hover:bg-slate-800 text-slate-300 rounded border border-slate-700 font-bold"
+                >
+                  - R$ 50
+                </button>
+
+                <div className="flex-1 px-1">
+                  <input
+                    type="range"
+                    min={1300}
+                    max={2500}
+                    step={25}
+                    value={selectedWage}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      setSelectedWage(val);
+                    }}
+                    onTouchEnd={() => handleApplyWage(selectedWage)}
+                    onMouseUp={() => handleApplyWage(selectedWage)}
+                    onPointerUp={() => handleApplyWage(selectedWage)}
+                    className="w-full accent-amber-500 cursor-pointer h-2 bg-slate-800 rounded-lg"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = Math.min(2500, selectedWage + 50);
+                    setSelectedWage(next);
+                    handleApplyWage(next);
+                  }}
+                  className="px-2.5 py-1 text-xs bg-slate-900 hover:bg-slate-800 text-slate-300 rounded border border-slate-700 font-bold"
+                >
+                  + R$ 50
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = Math.min(2500, selectedWage + 100);
+                    setSelectedWage(next);
+                    handleApplyWage(next);
+                  }}
+                  className="px-2.5 py-1 text-xs bg-slate-900 hover:bg-slate-800 text-slate-300 rounded border border-slate-700 font-bold"
+                >
+                  + R$ 100
+                </button>
+              </div>
+
               <div className="flex justify-between text-[10px] text-slate-500 font-mono">
                 <span>R$ 1.300 (Austeridade)</span>
                 <span>R$ 1.412 (Federal)</span>
@@ -253,16 +326,17 @@ export const PublicPoliciesView: React.FC<PublicPoliciesViewProps> = ({
                 {savedSuccess ? (
                   <span className="text-emerald-400 font-bold flex items-center gap-1.5">
                     <CheckCircle2 className="w-4 h-4" />
-                    Piso Salarial de R$ {currentWage.toLocaleString()} salvo e sancionado!
+                    Piso Salarial de R$ {currentWage.toLocaleString()} salvo e sancionado no Diário Oficial!
                   </span>
                 ) : selectedWage !== currentWage ? (
                   <span className="text-amber-300 font-medium">
-                    Alteração pendente: {selectedWage > currentWage ? '+' : ''}
-                    R$ {(selectedWage - currentWage).toLocaleString()} (Valor Atual: R$ {currentWage.toLocaleString()})
+                    Salvando automaticamente: R$ {selectedWage.toLocaleString()} (Variação: {selectedWage > currentWage ? '+' : ''}R$ {(selectedWage - currentWage).toLocaleString()})
                   </span>
                 ) : (
-                  <span className="text-slate-400">
-                    Piso Salarial Municipal atual: <strong className="text-white">R$ {currentWage.toLocaleString()}</strong> (Salvo no Diário Oficial)
+                  <span className="text-slate-300 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    Piso Salarial Municipal em vigor:{' '}
+                    <strong className="text-emerald-400 font-bold">R$ {currentWage.toLocaleString()}</strong> (Salvo no Diário Oficial)
                   </span>
                 )}
               </div>
@@ -270,24 +344,21 @@ export const PublicPoliciesView: React.FC<PublicPoliciesViewProps> = ({
               <button
                 type="button"
                 onClick={() => handleApplyWage()}
-                disabled={selectedWage === currentWage && !savedSuccess}
                 className={`w-full sm:w-auto px-6 py-3 rounded-xl font-black text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                  savedSuccess
-                    ? 'bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20'
-                    : selectedWage !== currentWage
-                    ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-xl shadow-amber-500/30 ring-2 ring-amber-400 animate-pulse'
-                    : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                  savedSuccess || selectedWage === currentWage
+                    ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/50 shadow'
+                    : 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-xl shadow-amber-500/30 ring-2 ring-amber-400'
                 }`}
               >
-                {savedSuccess ? (
+                {savedSuccess || selectedWage === currentWage ? (
                   <>
-                    <CheckCircle2 className="w-4 h-4" />
-                    Piso Salarial Salvo!
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    ✓ SALVO E PROMULGADO
                   </>
                 ) : (
                   <>
                     <FileCheck className="w-4 h-4" />
-                    💾 SALVAR E PROMULGAR: R$ {selectedWage.toLocaleString()}
+                    💾 CONFIRMAR PISO: R$ {selectedWage.toLocaleString()}
                   </>
                 )}
               </button>

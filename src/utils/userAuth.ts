@@ -42,7 +42,6 @@ export function purgeAllLegacyData(): void {
     const legacyKeys = [
       'prefeito_registered_profiles_v1',
       'prefeito_active_profile_id_v1',
-      'prefeito_game_state_v1',
       'prefeito_identified_mayor_v1',
       'prefeito_persisted_profiles',
       'prefeito_assigned_slot_id',

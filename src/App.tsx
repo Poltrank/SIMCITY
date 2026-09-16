@@ -197,7 +197,20 @@ export default function App() {
         if (res.ok) {
           const data = await res.json();
           if (data.success && data.state) {
-            console.log('Online save state verified for city:', data.cityName || data.state?.cityName);
+            const serverState = sanitizePrefeitoState(data.state);
+            setCityState((currentLocal) => {
+              const localCycles = currentLocal.economicCycle?.totalCyclesCompleted || 0;
+              const serverCycles = serverState.economicCycle?.totalCyclesCompleted || 0;
+              if (serverCycles > localCycles || currentLocal.treasury === 500000) {
+                console.log('Restoring validated online save for:', serverState.cityName);
+                try {
+                  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(serverState));
+                  updateCurrentUserState(serverState);
+                } catch (e) {}
+                return serverState;
+              }
+              return currentLocal;
+            });
           }
         }
       } catch (e) {
@@ -571,7 +584,11 @@ export default function App() {
             cityState={cityState}
             onUpdateState={(newState) => {
               setCityState(newState);
-              updateCurrentUserState(newState);
+              try {
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newState));
+                updateCurrentUserState(newState);
+              } catch (e) {}
+              saveStateOnline(newState);
             }}
             onShowToast={showToast}
           />
