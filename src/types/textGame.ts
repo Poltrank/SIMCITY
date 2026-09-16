@@ -190,9 +190,9 @@ export interface PrefeitoCityState {
     };
   };
 
-  // Ciclo Econômico em Tempo Real (Minutos)
+  // Ciclo Econômico em Tempo Real (Segundos)
   economicCycle: {
-    cycleDurationSeconds: number; // 120 segundos (2 minutos) por ciclo de arrecadação/despesa
+    cycleDurationSeconds: number; // 45 segundos por ciclo de arrecadação/despesa
     secondsRemaining: number;
     autoTick: boolean;
     lastTickTimestamp: number;
@@ -207,7 +207,15 @@ export interface PrefeitoCityState {
     iptuRicos?: number;
     iptu: number;
     iss: number;
+    itbi?: number; // Imposto de Transmissão de Bens Imóveis (Cartórios & Compra/Venda)
     fpmIcms: number;
+    taxaIluminacao?: number;
+    taxaResiduosColeta?: number; // Taxa de Coleta de Resíduos & Saneamento
+    estacionamentoRotativo?: number; // Zona Azul Digital & Parquímetros
+    tarifaTurismoEcologica?: number; // Taxa de Ecoturismo & Preservação (TPA)
+    concessoesMercadosQuiosques?: number; // Concessões de quiosques, feiras e espaços públicos
+    vendaEnergiaRede?: number; // Injeção de superávit elétrico na rede nacional
+    receitasEmprestimos?: number; // Juros e parcelas de empréstimos a outros municípios
     multasTransito: number;
     royaltiesPetroleo: number;
     cfemOuro: number;
@@ -217,9 +225,14 @@ export interface PrefeitoCityState {
 
   expenseBreakdown: {
     payroll: number;
+    previdenciaServidores?: number; // RPPS - Previdência Municipal & Aposentadorias
     saudeSus: number;
     educacaoMerenda: number;
     segurancaGuarda: number;
+    limpezaResiduosAterro?: number; // Limpeza Urbana, Varrição & Aterro Sanitário
+    combustivelManutencaoFrota?: number; // Combustível & Manutenção da Frota Municipal (SAMU, Ônibus, Viaturas)
+    energiaPrediosPublicos?: number; // Conta de Luz de Escolas, UPAs, Semáforos e Prefeitura
+    sistemasDigitaisTi?: number; // Digitalização, Softwares de Saúde, IPTU Online & Nuvem
     bombeiros?: number;
     saneamento?: number;
     transporte?: number;
@@ -387,9 +400,10 @@ export interface RegionalTreaty {
   details: string;
   amount: number; // MW, Tourists, Money, etc.
   monthlyCostOrPrice: number;
-  status: 'pending_ratification' | 'active' | 'rejected' | 'canceled';
+  status: 'pending_ratification' | 'active' | 'rejected' | 'canceled' | 'expired';
   startTime: number;
-  ratificationSecondsRemaining: number; // Takes 60s for treaty registry!
+  expiresAt?: number; // Proposta válida por 24 horas (24h) para o prefeito parceiro deliberar
+  ratificationSecondsRemaining?: number;
   timestamp: number;
 }
 

@@ -17,7 +17,7 @@ export const MONTH_NAMES = [
 export const GAME_START_DAY = 15;
 export const GAME_START_MONTH = 9; // Setembro
 export const GAME_START_YEAR = 2026;
-export const FISCAL_CYCLE_SECONDS = 120; // 2 minutos por ciclo fiscal
+export const FISCAL_CYCLE_SECONDS = 45; // 45 segundos por ciclo fiscal
 export const REAL_MS_PER_IN_GAME_DAY = 24 * 60 * 60 * 1000; // 24 horas da vida real = 1 dia no jogo
 
 export function calculateInGameDate(
@@ -120,14 +120,22 @@ export function createInitialPrefeitoState(setup?: InitialMayorSetup): PrefeitoC
   const startYear = GAME_START_YEAR;
 
   const initialMinimumWage = 1412; // Salário mínimo / Piso municipal base
-  const initialRevenue = 520000;
-  const initialExpenses = 440000;
-  const initialPayroll = 260000; // 50% da receita (dentro do limite da LRF de 54%)
+  const initialRevenue = 690000;
+  const initialExpenses = 585000;
+  const initialPayroll = 260000; // ~37% da receita (dentro do limite prudencial da LRF de 54%)
 
   const initialRevenueBreakdown = {
     iptu: 145000,
     iss: 165000,
+    itbi: 42000,
     fpmIcms: 130000,
+    taxaIluminacao: 25000,
+    taxaResiduosColeta: 31500,
+    estacionamentoRotativo: 28000,
+    tarifaTurismoEcologica: 23400,
+    concessoesMercadosQuiosques: 19500,
+    vendaEnergiaRede: 0,
+    receitasEmprestimos: 0,
     multasTransito: 55000,
     royaltiesPetroleo: 0,
     cfemOuro: 0,
@@ -137,9 +145,14 @@ export function createInitialPrefeitoState(setup?: InitialMayorSetup): PrefeitoC
 
   const initialExpenseBreakdown = {
     payroll: initialPayroll,
+    previdenciaServidores: 36400, // RPPS Previdência dos concursados
     saudeSus: 75000,
     educacaoMerenda: 60000,
     segurancaGuarda: 40000,
+    limpezaResiduosAterro: 32000,
+    combustivelManutencaoFrota: 34600,
+    energiaPrediosPublicos: 22000,
+    sistemasDigitaisTi: 15000,
     manutencaoUrbana: 35000,
     subsidioEstatais: 35000, // déficit inicial dos correios sociais
     amortizacaoDivida: 15000,
@@ -1123,6 +1136,25 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
 
   // Taxa de Iluminação Pública CIP / COSIP
   const taxaIluminacaoTotal = Math.round((state.population / 3.4) * (taxRates.taxaIluminacaoCip || 18));
+
+  // ITBI - Imposto de Transmissão de Bens Imóveis (Cartórios, Compra e Venda de Imóveis)
+  const itbiRate = (taxRates.itbiPercent || 2.0) / 2.0;
+  const itbi = Math.round(42000 * (state.population / 48500) * (state.infrastructureIndex / 58) * itbiRate);
+
+  // Zona Azul Digital & Parquímetros (Estacionamento Rotativo Público)
+  const estacionamentoRotativo = Math.round(28000 * (state.jobs / 21200) * (state.infrastructureIndex / 55));
+
+  // Taxa de Resíduos Sólidos Urbanos (TCRS / Coleta de Lixo Domiciliar)
+  const taxaResiduosColeta = Math.round(31500 * (state.population / 48500));
+
+  // Taxa de Preservação Ambiental & Ecoturismo (TPA cobrada por fluxo turístico)
+  const tarifaTurismoEcologica = Math.round(Math.max(0, state.touristsPerMonth || 0) * 4.5);
+
+  // Concessões e Outorga de Espaços Públicos (Quiosques, Mercados Municipais & Feiras)
+  const concessoesMercadosQuiosques = Math.round(19500 * (state.infrastructureIndex / 55));
+
+  // Venda de Excedente Energético para o Sistema Interligado Nacional (se houver superávit elétrico)
+  const vendaEnergiaRede = Math.round(Math.max(0, state.energySurplusMw || 0) * 850);
   
   // Multas de Trânsito & Postura Municipal
   const multasTransito =
@@ -1148,8 +1180,14 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
   const totalRevenue =
     iptu +
     iss +
+    itbi +
     fpmIcms +
     taxaIluminacaoTotal +
+    taxaResiduosColeta +
+    estacionamentoRotativo +
+    tarifaTurismoEcologica +
+    concessoesMercadosQuiosques +
+    vendaEnergiaRede +
     multasTransito +
     royaltiesPetroleo +
     cfemOuro +
@@ -1161,6 +1199,9 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
   const wageRatio = minWage / 1412;
   const payroll = Math.round(260000 * wageRatio);
 
+  // Previdência Municipal dos Servidores (RPPS - Aposentadorias e Encargos Obrigatórios ~14%)
+  const previdenciaServidores = Math.round(payroll * 0.14);
+
   // Gastos diretos com todas as secretarias definidos pelo prefeito
   const educacaoMerenda = Math.round(deptBudgets.educacao?.budgetMonthly || 60000);
   const saudeSus = Math.round(deptBudgets.saude?.budgetMonthly || 75000);
@@ -1171,6 +1212,22 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
   const transporteGasto = Math.round(deptBudgets.transporteMobilidade?.budgetMonthly || 30000);
   const energiaGasto = Math.round(deptBudgets.energiaIluminacao?.budgetMonthly || 35000);
   const meioAmbienteGasto = Math.round(deptBudgets.meioAmbiente?.budgetMonthly || 20000);
+
+  // Contrato Operacional de Limpeza Urbana, Varrição & Aterro Sanitário
+  const limpezaResiduosAterro = Math.round(32000 * (state.population / 48500));
+
+  // Combustível, Óleo e Manutenção da Frota Municipal (Ambulâncias do SAMU, Ônibus Escolares, Viaturas e Tratores)
+  const combustivelManutencaoFrota = Math.round(
+    24000 +
+    (deptBudgets.segurancaGuarda?.budgetMonthly || 40000) * 0.14 +
+    (deptBudgets.saude?.budgetMonthly || 75000) * 0.08
+  );
+
+  // Conta de Energia Elétrica e Água dos Prédios Públicos (Escolas, Postos de Saúde, Semáforos e Paço Municipal)
+  const energiaPrediosPublicos = Math.round(22000 * (state.infrastructureIndex / 58));
+
+  // Sistemas Digitais, Conectividade, Softwares de Saúde (e-SUS) e IPTU Online
+  const sistemasDigitaisTi = 15000;
 
   const manutencaoUrbana =
     Math.round(20000 * (state.infrastructureIndex / 58)) +
@@ -1202,9 +1259,14 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
 
   const totalExpenses =
     payroll +
+    previdenciaServidores +
     saudeSus +
     educacaoMerenda +
     segurancaGuarda +
+    limpezaResiduosAterro +
+    combustivelManutencaoFrota +
+    energiaPrediosPublicos +
+    sistemasDigitaisTi +
     manutencaoUrbana +
     subsidioEstatais +
     amortizacaoDivida;
@@ -1244,7 +1306,15 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
       iptuRicos,
       iptu,
       iss,
+      itbi,
       fpmIcms,
+      taxaIluminacao: taxaIluminacaoTotal,
+      taxaResiduosColeta,
+      estacionamentoRotativo,
+      tarifaTurismoEcologica,
+      concessoesMercadosQuiosques,
+      vendaEnergiaRede,
+      receitasEmprestimos: receitasEmprestimosRecebidos,
       multasTransito,
       royaltiesPetroleo,
       cfemOuro,
@@ -1253,9 +1323,14 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
     },
     expenseBreakdown: {
       payroll,
+      previdenciaServidores,
       saudeSus,
       educacaoMerenda,
       segurancaGuarda,
+      limpezaResiduosAterro,
+      combustivelManutencaoFrota,
+      energiaPrediosPublicos,
+      sistemasDigitaisTi,
       bombeiros: bombeirosDefesa,
       saneamento: saneamentoGasto,
       transporte: transporteGasto,
@@ -1444,13 +1519,13 @@ export function updateEconomicCycleTick(
   const newSecondsRemaining = adjustedRemaining - elapsedSec;
 
   if (newSecondsRemaining <= 0) {
-    // 2 MINUTOS EXPIRADOS! EXECUTA FECHAMENTO FISCAL E FOLHA SALARIAL!
+    // 45 SEGUNDOS EXPIRADOS! EXECUTA FECHAMENTO FISCAL E FOLHA SALARIAL!
     const advanced = advanceMonthInSimulation(baseState);
     const isSuperavit = advanced.netMonthly >= 0;
     const cycleNum = advanced.economicCycle.totalCyclesCompleted;
     const notification = isSuperavit
-      ? `Ciclo fiscal #${cycleNum} (2 min): +R$ ${advanced.netMonthly.toLocaleString()} arrecadados no Tesouro!`
-      : `Ciclo fiscal #${cycleNum} (2 min): Déficit de -R$ ${Math.abs(advanced.netMonthly).toLocaleString()} liquidado pelo Tesouro.`;
+      ? `Ciclo fiscal #${cycleNum} (45s): +R$ ${advanced.netMonthly.toLocaleString()} arrecadados no Tesouro!`
+      : `Ciclo fiscal #${cycleNum} (45s): Déficit de -R$ ${Math.abs(advanced.netMonthly).toLocaleString()} liquidado pelo Tesouro.`;
 
     return {
       state: advanced,

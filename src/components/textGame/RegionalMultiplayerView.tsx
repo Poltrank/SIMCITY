@@ -627,7 +627,7 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
               </h3>
               {selectedTargetProfile?.isRealPlayer && (
                 <span className="text-xs text-emerald-400 font-bold bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/40">
-                  ⚡ O jogador receberá um alerta na tela dele para ratificar em até 60s
+                  ⚡ A proposta fica disponível para o prefeito por 24 horas
                 </span>
               )}
             </div>
@@ -649,6 +649,12 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
                   </p>
                 </div>
                 <button
+                  disabled={treaties.some(
+                    (t) =>
+                      t.status === 'pending_ratification' &&
+                      t.type === 'tourism_corridor' &&
+                      (t.targetCityName === selectedTargetProfile?.cityName || t.targetMayorName === selectedTargetProfile?.name)
+                  )}
                   onClick={() => {
                     sounds.playStamp();
                     onProposeTreaty({
@@ -662,9 +668,25 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
                       targetCityName: selectedTargetProfile?.cityName,
                     });
                   }}
-                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg transition-colors shadow-sm"
+                  className={`w-full py-2 font-bold text-xs rounded-lg transition-colors shadow-sm ${
+                    treaties.some(
+                      (t) =>
+                        t.status === 'pending_ratification' &&
+                        t.type === 'tourism_corridor' &&
+                        (t.targetCityName === selectedTargetProfile?.cityName || t.targetMayorName === selectedTargetProfile?.name)
+                    )
+                      ? 'bg-slate-800 text-amber-300/80 cursor-not-allowed border border-slate-700'
+                      : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                  }`}
                 >
-                  Propor Tratado de Turismo
+                  {treaties.some(
+                    (t) =>
+                      t.status === 'pending_ratification' &&
+                      t.type === 'tourism_corridor' &&
+                      (t.targetCityName === selectedTargetProfile?.cityName || t.targetMayorName === selectedTargetProfile?.name)
+                  )
+                    ? 'Proposta Enviada (Aguardando 24h)'
+                    : 'Propor Tratado de Turismo'}
                 </button>
               </div>
 
@@ -684,6 +706,12 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
                   </p>
                 </div>
                 <button
+                  disabled={treaties.some(
+                    (t) =>
+                      t.status === 'pending_ratification' &&
+                      t.type === 'worker_migration' &&
+                      (t.targetCityName === selectedTargetProfile?.cityName || t.targetMayorName === selectedTargetProfile?.name)
+                  )}
                   onClick={() => {
                     sounds.playStamp();
                     onProposeTreaty({
@@ -697,9 +725,25 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
                       targetCityName: selectedTargetProfile?.cityName,
                     });
                   }}
-                  className="w-full py-2 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold text-xs rounded-lg transition-colors shadow-sm"
+                  className={`w-full py-2 font-bold text-xs rounded-lg transition-colors shadow-sm ${
+                    treaties.some(
+                      (t) =>
+                        t.status === 'pending_ratification' &&
+                        t.type === 'worker_migration' &&
+                        (t.targetCityName === selectedTargetProfile?.cityName || t.targetMayorName === selectedTargetProfile?.name)
+                    )
+                      ? 'bg-slate-800 text-amber-300/80 cursor-not-allowed border border-slate-700'
+                      : 'bg-amber-600 hover:bg-amber-500 text-slate-950'
+                  }`}
                 >
-                  Propor Intercâmbio de Empregos
+                  {treaties.some(
+                    (t) =>
+                      t.status === 'pending_ratification' &&
+                      t.type === 'worker_migration' &&
+                      (t.targetCityName === selectedTargetProfile?.cityName || t.targetMayorName === selectedTargetProfile?.name)
+                  )
+                    ? 'Proposta Enviada (Aguardando 24h)'
+                    : 'Propor Intercâmbio de Empregos'}
                 </button>
               </div>
 
@@ -719,7 +763,15 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
                   </p>
                 </div>
                 <button
-                  disabled={cityState.energySurplusMw < 10}
+                  disabled={
+                    cityState.energySurplusMw < 10 ||
+                    treaties.some(
+                      (t) =>
+                        t.status === 'pending_ratification' &&
+                        t.type === 'power_contract' &&
+                        (t.targetCityName === selectedTargetProfile?.cityName || t.targetMayorName === selectedTargetProfile?.name)
+                    )
+                  }
                   onClick={() => {
                     sounds.playStamp();
                     onProposeTreaty({
@@ -734,12 +786,28 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
                     });
                   }}
                   className={`w-full py-2 font-bold text-xs rounded-lg transition-colors shadow-sm ${
-                    cityState.energySurplusMw >= 10
+                    treaties.some(
+                      (t) =>
+                        t.status === 'pending_ratification' &&
+                        t.type === 'power_contract' &&
+                        (t.targetCityName === selectedTargetProfile?.cityName || t.targetMayorName === selectedTargetProfile?.name)
+                    )
+                      ? 'bg-slate-800 text-amber-300/80 cursor-not-allowed border border-slate-700'
+                      : cityState.energySurplusMw >= 10
                       ? 'bg-sky-600 hover:bg-sky-500 text-white'
                       : 'bg-slate-800 text-slate-500 cursor-not-allowed'
                   }`}
                 >
-                  {cityState.energySurplusMw >= 10 ? 'Exportar 15 MW de Energia' : 'Sem Energia Suficiente (<10 MW)'}
+                  {treaties.some(
+                    (t) =>
+                      t.status === 'pending_ratification' &&
+                      t.type === 'power_contract' &&
+                      (t.targetCityName === selectedTargetProfile?.cityName || t.targetMayorName === selectedTargetProfile?.name)
+                  )
+                    ? 'Proposta Enviada (Aguardando 24h)'
+                    : cityState.energySurplusMw >= 10
+                    ? 'Exportar 15 MW de Energia'
+                    : 'Sem Energia Suficiente (<10 MW)'}
                 </button>
               </div>
             </div>
@@ -781,10 +849,18 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
                                 ? 'bg-emerald-400 text-slate-950'
                                 : isPending
                                 ? 'bg-amber-400 text-slate-950 animate-pulse'
+                                : tr.status === 'expired'
+                                ? 'bg-slate-800 text-slate-300'
                                 : 'bg-slate-800 text-slate-400'
                             }`}
                           >
-                            {isActive ? 'Em Vigor' : isPending ? 'Aguardando Ratificação (60s)' : 'Arquivado'}
+                            {isActive
+                              ? 'Em Vigor'
+                              : isPending
+                              ? 'Aguardando Deliberação (24h)'
+                              : tr.status === 'expired'
+                              ? 'Expirado (24h)'
+                              : 'Arquivado'}
                           </span>
                           <span className="text-xs text-slate-400">Proposto por: {tr.fromMayorName}</span>
                         </div>

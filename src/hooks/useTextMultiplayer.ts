@@ -88,40 +88,66 @@ export const DEFAULT_NEIGHBORING_MAYORS: Record<string, RegionalMayorProfile> = 
 };
 
 /**
- * Merges new profiles into existing ones, ensuring real players always appear FIRST
- * and are never overwritten by static bot defaults.
+ * Merges new profiles into existing ones, ensuring real players always appear FIRST,
+ * deduplicating by cityName and name to prevent ghost copies (e.g. duplicate Laisopolis).
  */
 export function mergeMayorsWithRealFirst(
   existingProfiles: Record<string, RegionalMayorProfile>,
   newProfiles: Record<string, any>
 ): Record<string, RegionalMayorProfile> {
+  const allCandidates: RegionalMayorProfile[] = [];
+
+  // Collect from newProfiles
+  Object.values(newProfiles || {}).forEach((prof: any) => {
+    if (prof && prof.id && prof.cityName) {
+      allCandidates.push(prof);
+    }
+  });
+
+  // Collect from existingProfiles
+  Object.values(existingProfiles || {}).forEach((prof: any) => {
+    if (prof && prof.id && prof.cityName && !allCandidates.some((c) => c.id === prof.id)) {
+      allCandidates.push(prof);
+    }
+  });
+
+  // Collect default bots
+  Object.values(DEFAULT_NEIGHBORING_MAYORS).forEach((bot) => {
+    if (!allCandidates.some((c) => c.id === bot.id)) {
+      allCandidates.push(bot);
+    }
+  });
+
+  // Sort candidates so real players and higher lastUpdated come first
+  allCandidates.sort((a, b) => {
+    if (Boolean(a.isRealPlayer) !== Boolean(b.isRealPlayer)) {
+      return a.isRealPlayer ? -1 : 1;
+    }
+    return (b.lastUpdated || 0) - (a.lastUpdated || 0);
+  });
+
   const merged: Record<string, RegionalMayorProfile> = {};
+  const seenCityNames = new Set<string>();
+  const seenMayorNames = new Set<string>();
 
-  // 1. First add real players (from newProfiles then existingProfiles)
-  Object.entries(newProfiles || {}).forEach(([id, prof]) => {
-    if (prof && prof.isRealPlayer) {
-      merged[id] = prof;
-    }
-  });
-  Object.entries(existingProfiles || {}).forEach(([id, prof]) => {
-    if (prof && prof.isRealPlayer && !merged[id]) {
-      merged[id] = prof;
-    }
-  });
+  for (const prof of allCandidates) {
+    if (prof.cityName === 'Porto da Aliança') continue;
 
-  // 2. Then default neighboring mayors (bots)
-  Object.entries(DEFAULT_NEIGHBORING_MAYORS).forEach(([id, prof]) => {
-    if (!merged[id]) {
-      merged[id] = prof;
-    }
-  });
+    const normCity = (prof.cityName || '').toLowerCase().trim();
+    const normMayor = (prof.name || '').toLowerCase().trim();
 
-  // 3. Any other profiles from server
-  Object.entries(newProfiles || {}).forEach(([id, prof]) => {
-    if (prof && !merged[id]) {
-      merged[id] = prof;
+    // Prevent duplicate city cards (e.g. duplicate Laisopolis)
+    if (normCity && seenCityNames.has(normCity)) {
+      continue;
     }
-  });
+    if (normMayor && seenMayorNames.has(normMayor)) {
+      continue;
+    }
+
+    if (normCity) seenCityNames.add(normCity);
+    if (normMayor) seenMayorNames.add(normMayor);
+    merged[prof.id] = prof;
+  }
 
   return merged;
 }
@@ -919,41 +945,31 @@ export function useTextMultiplayer(
     return unsubscribe;
   }, [myPlayerId, options]);
 
-  // Ratification countdown timer for pending treaties (60 seconds)
+  // Expiration check timer for pending treaties (proposals valid for 24 hours)
   useEffect(() => {
     const timer = setInterval(() => {
+      const now = Date.now();
       setTreaties((prev) => {
         let changed = false;
         const updated = prev.map((t) => {
-          if (t.status === 'pending_ratification') {
-            const nextSec = t.ratificationSecondsRemaining - 1;
-            if (nextSec <= 0) {
-              changed = true;
-              return {
-                ...t,
-                ratificationSecondsRemaining: 0,
-                status: 'active' as const,
-              };
-            }
+          if (t.status === 'pending_ratification' && t.expiresAt && now > t.expiresAt) {
+            changed = true;
             return {
               ...t,
-              ratificationSecondsRemaining: nextSec,
+              status: 'expired' as const,
             };
           }
           return t;
         });
 
-        if (changed) {
-          sounds.playFanfare();
-        }
-        return updated;
+        return changed ? updated : prev;
       });
-    }, 1000);
+    }, 10000);
 
     return () => clearInterval(timer);
   }, []);
 
-  // Propose a regional treaty (dispatches to WS and HTTP)
+  // Propose a regional treaty (dispatches to WS and HTTP, valid for 24h, prevents spam duplicates)
   const proposeTreaty = useCallback(
     (treatyDraft: {
       type: RegionalTreaty['type'];
@@ -968,14 +984,29 @@ export function useTextMultiplayer(
       sounds.playStamp();
       const now = Date.now();
       const targetRole = treatyDraft.targetMayorRole || (myRole === 'mayor_north' ? 'mayor_south' : 'mayor_north');
+      const targetMayorName = treatyDraft.targetMayorName || 'Prefeito Vizinho';
+      const targetCityName = treatyDraft.targetCityName || 'Município Vizinho';
+
+      // Anti-spam duplicate check
+      const alreadyPending = treaties.some(
+        (t) =>
+          t.status === 'pending_ratification' &&
+          t.type === treatyDraft.type &&
+          (t.targetMayorName === targetMayorName || t.targetCityName === targetCityName)
+      );
+      if (alreadyPending) {
+        return;
+      }
+
+      const expiresAt = now + 24 * 60 * 60 * 1000; // 24 horas para deliberação do prefeito
 
       const newTreaty: RegionalTreaty = {
         id: 'treaty_' + now + '_' + Math.random().toString(36).substr(2, 4),
         fromMayorRole: myRole,
         fromMayorName: `${cityState.mayorName} (${cityState.cityName})`,
         targetMayorRole: targetRole,
-        targetMayorName: treatyDraft.targetMayorName || 'Prefeito Vizinho',
-        targetCityName: treatyDraft.targetCityName || 'Município Vizinho',
+        targetMayorName,
+        targetCityName,
         type: treatyDraft.type,
         title: treatyDraft.title,
         details: treatyDraft.details,
@@ -983,11 +1014,23 @@ export function useTextMultiplayer(
         monthlyCostOrPrice: treatyDraft.monthlyCostOrPrice,
         status: 'pending_ratification',
         startTime: now,
-        ratificationSecondsRemaining: 60,
+        expiresAt,
         timestamp: now,
       };
 
-      setTreaties((prev) => [newTreaty, ...prev]);
+      setTreaties((prev) => {
+        if (
+          prev.some(
+            (t) =>
+              t.status === 'pending_ratification' &&
+              t.type === newTreaty.type &&
+              (t.targetMayorName === targetMayorName || t.targetCityName === targetCityName)
+          )
+        ) {
+          return prev;
+        }
+        return [newTreaty, ...prev];
+      });
 
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         wsRef.current.send(
@@ -1019,7 +1062,7 @@ export function useTextMultiplayer(
         }),
       }).catch(() => {});
     },
-    [myRole, cityState, roomId, myPlayerId]
+    [myRole, cityState, roomId, myPlayerId, treaties]
   );
 
   // Respond to a treaty (dispatches to WS and HTTP)

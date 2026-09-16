@@ -143,6 +143,14 @@ export const MayorNegotiationsView: React.FC<MayorNegotiationsViewProps> = ({
   const pendingTreaties = treaties.filter((t) => t.status === 'pending_ratification');
   const activeTreaties = treaties.filter((t) => t.status === 'active');
 
+  const isTreatyPending = (type: string) =>
+    treaties.some(
+      (t) =>
+        t.status === 'pending_ratification' &&
+        t.type === type &&
+        (t.targetCityName === selectedMayor?.cityName || t.targetMayorName === selectedMayor?.name)
+    );
+
   return (
     <div className="space-y-6">
       {/* Toast Notification */}
@@ -440,8 +448,9 @@ export const MayorNegotiationsView: React.FC<MayorNegotiationsViewProps> = ({
                   Garante estabilidade energética, reduz quedas de luz e atrai empresas de TI.
                 </p>
                 <div className="flex items-center justify-between pt-2 border-t border-slate-800/60">
-                  <span className="text-[10px] text-slate-400">Ratificação: 60s pela Câmara</span>
+                  <span className="text-[10px] text-slate-400">Validade da Proposta: 24 horas</span>
                   <button
+                    disabled={isTreatyPending('power_contract')}
                     onClick={() => {
                       onProposeTreaty({
                         type: 'power_contract',
@@ -455,10 +464,14 @@ export const MayorNegotiationsView: React.FC<MayorNegotiationsViewProps> = ({
                       });
                       triggerToast(`Proposta de Tratado Energético enviada a ${selectedMayor.name}!`);
                     }}
-                    className="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5"
+                    className={`px-3 py-1.5 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 ${
+                      isTreatyPending('power_contract')
+                        ? 'bg-slate-800 text-amber-300/80 cursor-not-allowed border border-slate-700'
+                        : 'bg-sky-600 hover:bg-sky-500 text-white'
+                    }`}
                   >
                     <Handshake className="w-3.5 h-3.5" />
-                    Propor Tratado de Energia
+                    {isTreatyPending('power_contract') ? 'Proposta Enviada (Aguardando 24h)' : 'Propor Tratado de Energia'}
                   </button>
                 </div>
               </div>
@@ -488,6 +501,7 @@ export const MayorNegotiationsView: React.FC<MayorNegotiationsViewProps> = ({
                 <div className="flex items-center justify-between pt-2 border-t border-slate-800/60">
                   <span className="text-[10px] text-slate-400">+12% Índice Sanitário</span>
                   <button
+                    disabled={isTreatyPending('sanitation_consortium')}
                     onClick={() => {
                       onProposeTreaty({
                         type: 'sanitation_consortium',
@@ -501,10 +515,14 @@ export const MayorNegotiationsView: React.FC<MayorNegotiationsViewProps> = ({
                       });
                       triggerToast(`Proposta de Consórcio Sanitário enviada a ${selectedMayor.name}!`);
                     }}
-                    className="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5"
+                    className={`px-3 py-1.5 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 ${
+                      isTreatyPending('sanitation_consortium')
+                        ? 'bg-slate-800 text-amber-300/80 cursor-not-allowed border border-slate-700'
+                        : 'bg-teal-600 hover:bg-teal-500 text-white'
+                    }`}
                   >
                     <Handshake className="w-3.5 h-3.5" />
-                    Propor Consórcio de Saneamento
+                    {isTreatyPending('sanitation_consortium') ? 'Proposta Enviada (Aguardando 24h)' : 'Propor Consórcio de Saneamento'}
                   </button>
                 </div>
               </div>
@@ -534,6 +552,7 @@ export const MayorNegotiationsView: React.FC<MayorNegotiationsViewProps> = ({
                 <div className="flex items-center justify-between pt-2 border-t border-slate-800/60">
                   <span className="text-[10px] text-slate-400">+18% Aprovação na Saúde</span>
                   <button
+                    disabled={isTreatyPending('health_consortium')}
                     onClick={() => {
                       onProposeTreaty({
                         type: 'health_consortium',
@@ -547,10 +566,14 @@ export const MayorNegotiationsView: React.FC<MayorNegotiationsViewProps> = ({
                       });
                       triggerToast(`Proposta de Consórcio de Saúde enviada a ${selectedMayor.name}!`);
                     }}
-                    className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5"
+                    className={`px-3 py-1.5 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 ${
+                      isTreatyPending('health_consortium')
+                        ? 'bg-slate-800 text-amber-300/80 cursor-not-allowed border border-slate-700'
+                        : 'bg-rose-600 hover:bg-rose-500 text-white'
+                    }`}
                   >
                     <Handshake className="w-3.5 h-3.5" />
-                    Propor Consórcio de Saúde
+                    {isTreatyPending('health_consortium') ? 'Proposta Enviada (Aguardando 24h)' : 'Propor Consórcio de Saúde'}
                   </button>
                 </div>
               </div>
@@ -580,6 +603,7 @@ export const MayorNegotiationsView: React.FC<MayorNegotiationsViewProps> = ({
                 <div className="flex items-center justify-between pt-2 border-t border-slate-800/60">
                   <span className="text-[10px] text-slate-400">+2.500 Empregos Conectados</span>
                   <button
+                    disabled={isTreatyPending('transit_integration')}
                     onClick={() => {
                       onProposeTreaty({
                         type: 'transit_integration',
@@ -593,10 +617,14 @@ export const MayorNegotiationsView: React.FC<MayorNegotiationsViewProps> = ({
                       });
                       triggerToast(`Proposta de Transporte Integrado enviada a ${selectedMayor.name}!`);
                     }}
-                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5"
+                    className={`px-3 py-1.5 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 ${
+                      isTreatyPending('transit_integration')
+                        ? 'bg-slate-800 text-amber-300/80 cursor-not-allowed border border-slate-700'
+                        : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+                    }`}
                   >
                     <Handshake className="w-3.5 h-3.5" />
-                    Propor Integração de Transporte
+                    {isTreatyPending('transit_integration') ? 'Proposta Enviada (Aguardando 24h)' : 'Propor Integração de Transporte'}
                   </button>
                 </div>
               </div>
@@ -626,6 +654,7 @@ export const MayorNegotiationsView: React.FC<MayorNegotiationsViewProps> = ({
                 <div className="flex items-center justify-between pt-2 border-t border-slate-800/60">
                   <span className="text-[10px] text-slate-400">+10% Segurança nas Fronteiras</span>
                   <button
+                    disabled={isTreatyPending('security_pact')}
                     onClick={() => {
                       onProposeTreaty({
                         type: 'security_pact',
@@ -639,10 +668,14 @@ export const MayorNegotiationsView: React.FC<MayorNegotiationsViewProps> = ({
                       });
                       triggerToast(`Proposta de Segurança Integrada enviada a ${selectedMayor.name}!`);
                     }}
-                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5"
+                    className={`px-3 py-1.5 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 ${
+                      isTreatyPending('security_pact')
+                        ? 'bg-slate-800 text-amber-300/80 cursor-not-allowed border border-slate-700'
+                        : 'bg-blue-600 hover:bg-blue-500 text-white'
+                    }`}
                   >
                     <Handshake className="w-3.5 h-3.5" />
-                    Propor Pacto de Segurança
+                    {isTreatyPending('security_pact') ? 'Proposta Enviada (Aguardando 24h)' : 'Propor Pacto de Segurança'}
                   </button>
                 </div>
               </div>
@@ -672,6 +705,7 @@ export const MayorNegotiationsView: React.FC<MayorNegotiationsViewProps> = ({
                 <div className="flex items-center justify-between pt-2 border-t border-slate-800/60">
                   <span className="text-[10px] text-slate-400">Arrecadação de ISS em alta</span>
                   <button
+                    disabled={isTreatyPending('tourism_corridor')}
                     onClick={() => {
                       onProposeTreaty({
                         type: 'tourism_corridor',
@@ -685,10 +719,14 @@ export const MayorNegotiationsView: React.FC<MayorNegotiationsViewProps> = ({
                       });
                       triggerToast(`Proposta de Corredor Turístico enviada a ${selectedMayor.name}!`);
                     }}
-                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5"
+                    className={`px-3 py-1.5 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 ${
+                      isTreatyPending('tourism_corridor')
+                        ? 'bg-slate-800 text-amber-300/80 cursor-not-allowed border border-slate-700'
+                        : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                    }`}
                   >
                     <Handshake className="w-3.5 h-3.5" />
-                    Propor Corredor de Turismo
+                    {isTreatyPending('tourism_corridor') ? 'Proposta Enviada (Aguardando 24h)' : 'Propor Corredor de Turismo'}
                   </button>
                 </div>
               </div>
@@ -718,6 +756,7 @@ export const MayorNegotiationsView: React.FC<MayorNegotiationsViewProps> = ({
                 <div className="flex items-center justify-between pt-2 border-t border-slate-800/60">
                   <span className="text-[10px] text-slate-400">Desenvolvimento Regional</span>
                   <button
+                    disabled={isTreatyPending('tax_incentive_hub')}
                     onClick={() => {
                       onProposeTreaty({
                         type: 'tax_incentive_hub',
@@ -731,10 +770,14 @@ export const MayorNegotiationsView: React.FC<MayorNegotiationsViewProps> = ({
                       });
                       triggerToast(`Proposta de Polo Industrial enviada a ${selectedMayor.name}!`);
                     }}
-                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-slate-950 font-black text-xs rounded-lg transition-colors flex items-center gap-1.5"
+                    className={`px-3 py-1.5 font-black text-xs rounded-lg transition-colors flex items-center gap-1.5 ${
+                      isTreatyPending('tax_incentive_hub')
+                        ? 'bg-slate-800 text-amber-300/80 cursor-not-allowed border border-slate-700'
+                        : 'bg-amber-600 hover:bg-amber-500 text-slate-950'
+                    }`}
                   >
                     <Handshake className="w-3.5 h-3.5" />
-                    Propor Polo Industrial
+                    {isTreatyPending('tax_incentive_hub') ? 'Proposta Enviada (Aguardando 24h)' : 'Propor Polo Industrial'}
                   </button>
                 </div>
               </div>
@@ -743,7 +786,7 @@ export const MayorNegotiationsView: React.FC<MayorNegotiationsViewProps> = ({
         </div>
       )}
 
-      {/* PAINEL DE TRATADOS ATIVOS E EM RATIFICAÇÃO (60S) */}
+      {/* PAINEL DE TRATADOS ATIVOS E EM DELIBERAÇÃO (24H) */}
       <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 shadow-md space-y-4">
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
           <div>
@@ -752,12 +795,12 @@ export const MayorNegotiationsView: React.FC<MayorNegotiationsViewProps> = ({
               Livro de Registro de Tratados Regionais ({treaties.length})
             </h3>
             <p className="text-xs text-slate-400">
-              Tratados propostos passam por deliberação de 60 segundos antes da promulgação definitiva.
+              Propostas enviadas ficam disponíveis para deliberação do prefeito parceiro por 24 horas.
             </p>
           </div>
           <div className="flex items-center gap-2 text-xs font-mono">
             <span className="px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800">
-              {pendingTreaties.length} em ratificação
+              {pendingTreaties.length} em deliberação
             </span>
             <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
               {activeTreaties.length} em vigor
@@ -797,13 +840,17 @@ export const MayorNegotiationsView: React.FC<MayorNegotiationsViewProps> = ({
                             ? 'bg-amber-500 text-slate-950 animate-pulse'
                             : isActive
                             ? 'bg-emerald-500 text-slate-950'
+                            : treaty.status === 'expired'
+                            ? 'bg-slate-800 text-slate-300'
                             : 'bg-rose-500 text-white'
                         }`}
                       >
                         {isPending
-                          ? `Aguardando Ratificação (${treaty.ratificationSecondsRemaining}s)`
+                          ? 'Aguardando Deliberação do Prefeito (24h)'
                           : isActive
                           ? 'Tratado em Vigor'
+                          : treaty.status === 'expired'
+                          ? 'Expirado (24h)'
                           : 'Rejeitado / Vetado'}
                       </span>
                       <h4 className="font-bold text-sm text-white">{treaty.title}</h4>

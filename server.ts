@@ -91,6 +91,46 @@ function saveRoomsToDisk() {
   }
 }
 
+function cleanDuplicateProfiles(room: RoomState) {
+  if (!room.cityProfiles) return;
+  const seenCityNames = new Map<string, string>(); // normCity -> playerId (keep highest lastUpdated)
+  const seenMayorNames = new Map<string, string>(); // normMayor -> playerId
+
+  // Sort profiles by lastUpdated descending (newest first)
+  const sortedProfiles = Object.values(room.cityProfiles).sort(
+    (a: any, b: any) => (b.lastUpdated || 0) - (a.lastUpdated || 0)
+  );
+
+  const keptIds = new Set<string>();
+
+  for (const prof of sortedProfiles) {
+    const normCity = (prof.cityName || '').toLowerCase().trim();
+    const normMayor = (prof.name || '').toLowerCase().trim();
+
+    // Check if duplicate city or mayor already kept
+    if (normCity && seenCityNames.has(normCity)) {
+      continue; // Skip and remove duplicate
+    }
+    if (normMayor && seenMayorNames.has(normMayor)) {
+      continue; // Skip and remove duplicate
+    }
+
+    if (normCity) seenCityNames.set(normCity, prof.id);
+    if (normMayor) seenMayorNames.set(normMayor, prof.id);
+    keptIds.add(prof.id);
+  }
+
+  // Remove any profile not in keptIds
+  Object.keys(room.cityProfiles).forEach((pid) => {
+    if (!keptIds.has(pid)) {
+      delete room.cityProfiles[pid];
+      if (room.players && room.players[pid]) {
+        delete room.players[pid];
+      }
+    }
+  });
+}
+
 function getOrCreateRoom(roomId: string): RoomState {
   const cleanId = roomId.toUpperCase().trim() || 'REGIAO1';
   if (!rooms[cleanId]) {
@@ -121,6 +161,7 @@ function getOrCreateRoom(roomId: string): RoomState {
     };
     saveRoomsToDisk();
   }
+  cleanDuplicateProfiles(rooms[cleanId]);
   return rooms[cleanId];
 }
 
@@ -477,6 +518,7 @@ app.post('/api/multiplayer/heartbeat', (req, res) => {
         room.players[playerId].party = profile.party || room.players[playerId].party;
         room.players[playerId].isOnline = true;
       }
+      cleanDuplicateProfiles(room);
       saveRoomsToDisk();
     } else if (room.cityProfiles[playerId]) {
       room.cityProfiles[playerId].lastUpdated = Date.now();
@@ -562,7 +604,7 @@ app.post('/api/multiplayer/chat', (req, res) => {
   }
 });
 
-// 5. Propose Treaty via HTTP
+// 5. Propose Treaty via HTTP (24h Deliberation, Anti-Spam Duplicate Prevention)
 app.post('/api/multiplayer/treaty/propose', (req, res) => {
   try {
     const { roomId, treaty } = req.body;
@@ -571,11 +613,33 @@ app.post('/api/multiplayer/treaty/propose', (req, res) => {
     }
     const room = getOrCreateRoom(roomId);
     const now = Date.now();
+
+    // Auto-expire treaties older than 24h
+    room.regionalTreaties.forEach((t: any) => {
+      if (t.status === 'pending_ratification' && t.expiresAt && now > t.expiresAt) {
+        t.status = 'expired';
+      }
+    });
+
+    // Check if an identical proposal is ALREADY pending for this target
+    const existingPending = room.regionalTreaties.find(
+      (t: any) =>
+        t.status === 'pending_ratification' &&
+        t.type === treaty.type &&
+        t.fromMayorName === treaty.fromMayorName &&
+        (t.targetMayorName === treaty.targetMayorName || t.targetCityName === treaty.targetCityName)
+    );
+
+    if (existingPending) {
+      return res.json({ success: true, treaty: existingPending, alreadyPending: true });
+    }
+
+    const expiresAt = now + 24 * 60 * 60 * 1000; // Proposta válida por 24 horas
     const newTreaty = {
       ...treaty,
-      id: 'treaty_' + now + '_' + Math.random().toString(36).substr(2, 4),
+      id: treaty.id || ('treaty_' + now + '_' + Math.random().toString(36).substr(2, 4)),
       startTime: now,
-      ratificationSecondsRemaining: 60,
+      expiresAt,
       status: 'pending_ratification',
       timestamp: now,
     };
@@ -584,7 +648,7 @@ app.post('/api/multiplayer/treaty/propose', (req, res) => {
     const sysMsg = {
       id: 'msg_treaty_' + now,
       sender: 'Cúpula Regional',
-      text: `📜 NOVA NEGOCIAÇÃO: ${treaty.fromMayorName || 'Prefeito'} propôs o tratado "${newTreaty.title}" para apreciação da Câmara e Gabinete vizinho!`,
+      text: `📜 NOVA PROPOSTA DE TRATADO: ${treaty.fromMayorName || 'Prefeito'} propôs "${newTreaty.title}" para o Prefeito de ${treaty.targetCityName || 'cidade vizinha'} (deliberação válida por 24h)!`,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       role: 'system',
     };
@@ -600,6 +664,7 @@ app.post('/api/multiplayer/treaty/propose', (req, res) => {
       targetMayorRole: treaty.targetMayorRole,
     });
 
+    saveRoomsToDisk();
     return res.json({ success: true, treaty: newTreaty });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
@@ -989,41 +1054,63 @@ wss.on('connection', (ws: ClientWS) => {
         }
       }
 
-      // Propose Regional Bilateral Treaty (Takes 60s for ratification!)
+      // Propose Regional Bilateral Treaty (Valid for 24h, Anti-Spam Duplicate Prevention)
       if (type === 'propose_regional_treaty' && ws.roomId) {
         const room = rooms[ws.roomId];
         if (room && data.treaty) {
           const now = Date.now();
-          const treaty = {
-            ...data.treaty,
-            id: 'treaty_' + now + '_' + Math.random().toString(36).substr(2, 4),
-            startTime: now,
-            ratificationSecondsRemaining: 60,
-            status: 'pending_ratification',
-            timestamp: now,
-          };
-          room.regionalTreaties.push(treaty);
 
-          // Announce in chat
-          const sysMsg = {
-            id: 'msg_treaty_' + now,
-            sender: 'Cúpula Regional',
-            text: `📜 NOVA NEGOCIAÇÃO: ${data.treaty.fromMayorName || 'Prefeito'} propôs o tratado "${treaty.title}" para apreciação da Câmara e Gabinete vizinho!`,
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            role: 'system',
-          };
-          room.chatMessages.push(sysMsg);
-
-          broadcastToRoom(ws.roomId, {
-            type: 'regional_treaty_proposed',
-            treaty,
-            regionalTreaties: room.regionalTreaties,
-            sysMsg,
-            senderId: ws.playerId,
-            fromMayorName: data.treaty.fromMayorName,
-            fromMayorRole: data.treaty.fromMayorRole,
-            targetMayorRole: data.treaty.targetMayorRole,
+          // Auto-expire treaties older than 24h
+          room.regionalTreaties.forEach((t: any) => {
+            if (t.status === 'pending_ratification' && t.expiresAt && now > t.expiresAt) {
+              t.status = 'expired';
+            }
           });
+
+          // Check if already pending to prevent spamming
+          const existingPending = room.regionalTreaties.find(
+            (t: any) =>
+              t.status === 'pending_ratification' &&
+              t.type === data.treaty.type &&
+              t.fromMayorName === data.treaty.fromMayorName &&
+              (t.targetMayorName === data.treaty.targetMayorName || t.targetCityName === data.treaty.targetCityName)
+          );
+
+          if (!existingPending) {
+            const expiresAt = now + 24 * 60 * 60 * 1000;
+            const treaty = {
+              ...data.treaty,
+              id: data.treaty.id || ('treaty_' + now + '_' + Math.random().toString(36).substr(2, 4)),
+              startTime: now,
+              expiresAt,
+              status: 'pending_ratification',
+              timestamp: now,
+            };
+            room.regionalTreaties.push(treaty);
+
+            // Announce in chat
+            const sysMsg = {
+              id: 'msg_treaty_' + now,
+              sender: 'Cúpula Regional',
+              text: `📜 NOVA PROPOSTA DE TRATADO: ${data.treaty.fromMayorName || 'Prefeito'} propôs "${treaty.title}" para o Prefeito vizinho (válida por 24h)!`,
+              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              role: 'system',
+            };
+            room.chatMessages.push(sysMsg);
+
+            broadcastToRoom(ws.roomId, {
+              type: 'regional_treaty_proposed',
+              treaty,
+              regionalTreaties: room.regionalTreaties,
+              sysMsg,
+              senderId: ws.playerId,
+              fromMayorName: data.treaty.fromMayorName,
+              fromMayorRole: data.treaty.fromMayorRole,
+              targetMayorRole: data.treaty.targetMayorRole,
+            });
+
+            saveRoomsToDisk();
+          }
         }
       }
 
