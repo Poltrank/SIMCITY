@@ -79,6 +79,8 @@ export interface DispatchOutcome {
     goldKgChange?: number;
     energyMwChange?: number;
     waterPercentChange?: number;
+    housingUnitsChange?: number;
+    housingDeficitChange?: number;
     fiscalRatingChange?: FiscalRating;
     debtChange?: number;
   };
@@ -235,6 +237,9 @@ export interface PrefeitoCityState {
     indPobres?: number;
     indMedios?: number;
     indRicos?: number;
+    totalResidencial?: number;
+    totalComercial?: number;
+    totalIndustrial?: number;
 
     iptuPobres?: number;
     iptuMedios?: number;

@@ -27,6 +27,7 @@ import {
   rejectIntermunicipalLoan,
   triggerManualEmergency,
   resolveEmergencyEvent,
+  processOfflineEarnings,
 } from './simulation/textSimulationEngine';
 import { useTextMultiplayer } from './hooks/useTextMultiplayer';
 import { sounds } from './audio/soundManager';
@@ -169,8 +170,25 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [cityState, saveStateOnline]);
 
-  // Try to load any previously saved state from online server on first mount
+  // Try to load any previously saved state from online server on first mount and calculate offline earnings
   useEffect(() => {
+    // 1. Process offline earnings for the local city
+    setCityState((prev) => {
+      const { state: updated, offlineReport } = processOfflineEarnings(prev, Date.now());
+      if (offlineReport && offlineReport.cyclesPassed > 0) {
+        setTimeout(() => {
+          sounds.playCash();
+          showToast(
+            offlineReport.netEarned >= 0
+              ? `🏛️ Retorno ao Gabinete! A Fazenda arrecadou +R$ ${offlineReport.netEarned.toLocaleString()} durante sua ausência (${offlineReport.elapsedMinutes} min offline)!`
+              : `⚠️ Retorno ao Gabinete: Balanço de ausência debitou -R$ ${Math.abs(offlineReport.netEarned).toLocaleString()} em custeios municipais.`,
+            offlineReport.netEarned >= 0 ? 'success' : 'info'
+          );
+        }, 1200);
+      }
+      return updated;
+    });
+
     const fetchOnlineSavedState = async () => {
       try {
         const cleanKey = cityState.cityName ? encodeURIComponent(cityState.cityName.trim().toLowerCase()) : 'default_city';

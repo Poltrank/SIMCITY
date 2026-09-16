@@ -308,31 +308,63 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
 
             {/* Cidades de Jogadores Reais Conectados (Namorada / Parceiros) */}
             {realPartners.length > 0 ? (
-              realPartners.map((partner) => (
-                <div
-                  key={partner.id}
-                  className="bg-slate-900 border-2 border-emerald-500 rounded-xl p-5 shadow-[0_0_20px_rgba(16,185,129,0.2)] relative overflow-hidden"
-                >
-                  <div className="flex items-center justify-between mb-3 border-b border-slate-800 pb-3">
-                    <div>
-                      <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                        🟢 Jogador(a) Real Conectado(a)
-                      </span>
-                      <h3 className="text-xl font-black text-white">{partner.cityName}</h3>
-                      <span className="text-xs text-slate-300">
-                        {partner.name} ({partner.party || 'SEM PARTIDO'})
-                      </span>
+              realPartners.map((partner) => {
+                const now = Date.now();
+                const isOnlineNow = partner.lastUpdated && Math.abs(now - partner.lastUpdated) < 180000;
+
+                return (
+                  <div
+                    key={partner.id}
+                    className={`bg-slate-900 border-2 ${
+                      isOnlineNow ? 'border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.2)]' : 'border-amber-500/70'
+                    } rounded-xl p-5 relative overflow-hidden`}
+                  >
+                    <div className="flex items-center justify-between mb-3 border-b border-slate-800 pb-3">
+                      <div>
+                        <span
+                          className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 ${
+                            isOnlineNow ? 'text-emerald-400' : 'text-amber-400'
+                          }`}
+                        >
+                          {isOnlineNow ? (
+                            <>
+                              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                              🟢 Jogador(a) Real Conectado(a)
+                            </>
+                          ) : (
+                            <>
+                              <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                              🟡 Jogador(a) Real (Fora do Gabinete / Offline)
+                            </>
+                          )}
+                        </span>
+                        <h3 className="text-xl font-black text-white">{partner.cityName}</h3>
+                        <span className="text-xs text-slate-300">
+                          {partner.name} ({partner.party || 'SEM PARTIDO'})
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        {isOnlineNow ? (
+                          <span className="text-xs px-2.5 py-1 rounded font-black bg-emerald-950 text-emerald-300 border border-emerald-500 shadow-sm animate-pulse">
+                            Ao Vivo na Sala {roomId}
+                          </span>
+                        ) : (
+                          <span className="text-xs px-2.5 py-1 rounded font-bold bg-amber-950/80 text-amber-300 border border-amber-500/50">
+                            Offline (Aguardando login)
+                          </span>
+                        )}
+                        <span className="block text-[10px] text-slate-400 mt-1 font-mono">
+                          CAPAG {partner.fiscalRating || 'A'} | {partner.approvalRating || 65}% Aprov.
+                        </span>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <span className="text-xs px-2.5 py-1 rounded font-black bg-emerald-950 text-emerald-300 border border-emerald-500 shadow-sm animate-pulse">
-                        Ao Vivo na Sala {roomId}
-                      </span>
-                      <span className="block text-[10px] text-slate-400 mt-1 font-mono">
-                        CAPAG {partner.fiscalRating || 'A'} | {partner.approvalRating || 65}% Aprov.
-                      </span>
-                    </div>
-                  </div>
+
+                    {!isOnlineNow && (
+                      <div className="mb-3 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-200/90 leading-relaxed">
+                        <span className="font-bold text-amber-300 block">ℹ️ Cidade gerando lucros offline:</span>
+                        A Prefeita {partner.name} ainda não abriu o jogo hoje. A Fazenda da cidade continua operando e acumulando superávit. Assim que ela fizer login no celular dela, todos os rendimentos do período offline serão computados e o saldo será atualizado automaticamente aqui no seu painel!
+                      </div>
+                    )}
 
                   {/* Estatísticas da Namorada / Parceiro */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs mb-4">
@@ -445,8 +477,9 @@ export const RegionalMultiplayerView: React.FC<RegionalMultiplayerViewProps> = (
                     </button>
                   </div>
                 </div>
-              ))
-            ) : (
+              );
+            })
+          ) : (
               <div className="bg-slate-900 border-2 border-dashed border-slate-800 rounded-xl p-6 flex flex-col items-center justify-center text-center shadow-md">
                 <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-sky-400 mb-3">
                   <Radio className="w-6 h-6 animate-pulse text-sky-400" />

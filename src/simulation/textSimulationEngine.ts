@@ -2670,6 +2670,103 @@ export function updateEconomicCycleTick(
 }
 
 // ==========================================
+// CÁLCULO DE RENDIMENTO OFFLINE (LUCRO DE AUSÊNCIA)
+// Processa os ciclos fiscais acumulados enquanto o jogador esteve com o jogo fechado
+// ==========================================
+export function processOfflineEarnings(
+  state: PrefeitoCityState,
+  now: number = Date.now()
+): {
+  state: PrefeitoCityState;
+  offlineReport?: {
+    elapsedMinutes: number;
+    cyclesPassed: number;
+    netEarned: number;
+  };
+} {
+  const lastTick = state.economicCycle?.lastTickTimestamp || state.gameStartRealTimestamp || now;
+  const elapsedMs = Math.max(0, now - lastTick);
+  const elapsedMinutes = Math.floor(elapsedMs / 60000);
+  const elapsedSeconds = Math.floor(elapsedMs / 1000);
+
+  // Mínimo de 1 ciclo fiscal (45s) e pelo menos 1 minuto decorrido
+  if (elapsedSeconds < FISCAL_CYCLE_SECONDS || elapsedMinutes < 1) {
+    return {
+      state: {
+        ...state,
+        economicCycle: {
+          ...(state.economicCycle || {
+            cycleDurationSeconds: FISCAL_CYCLE_SECONDS,
+            secondsRemaining: FISCAL_CYCLE_SECONDS,
+            autoTick: true,
+            lastCycleNet: state.netMonthly,
+            totalCyclesCompleted: 0,
+          }),
+          lastTickTimestamp: now,
+        },
+      },
+    };
+  }
+
+  // Teto máximo de ausência compensada: até 12 horas (960 ciclos fiscais de 45 segundos)
+  const maxCycles = 960;
+  const cyclesPassed = Math.min(maxCycles, Math.floor(elapsedSeconds / FISCAL_CYCLE_SECONDS));
+
+  if (cyclesPassed <= 0) {
+    return { state };
+  }
+
+  // Se a cidade opera com superávit fiscal mensal/ciclo
+  const netPerCycle = state.netMonthly;
+  const netEarned = cyclesPassed * netPerCycle;
+  const newTreasury = Math.max(0, state.treasury + netEarned);
+
+  const hoursOffline = (elapsedMinutes / 60).toFixed(1);
+  const isSuperavit = netEarned >= 0;
+
+  const offlineArticle: GazetteArticle = {
+    id: 'gaz_offline_' + Date.now(),
+    title: isSuperavit
+      ? `Fazenda Municipal: +R$ ${netEarned.toLocaleString()} em Tributos Arrecadados no Período Offline`
+      : `Balanço de Ausência: Débito de -R$ ${Math.abs(netEarned).toLocaleString()} nos Cofres Públicos`,
+    source: 'Diário Oficial',
+    type: isSuperavit ? 'decreto' : 'alerta',
+    dateStr: state.monthName ? `${state.day} de ${state.monthName}` : '16 de Setembro',
+    body: `A Secretaria de Finanças consolidou o relatório fiscal referente ao período em que o Gabinete esteve em recesso (${elapsedMinutes} minutos / ~${hoursOffline}h). Foram contabilizados ${cyclesPassed} ciclos fiscais automatizados. Saldo líquido transferido para o Tesouro Municipal: ${isSuperavit ? '+' : '-'}R$ ${Math.abs(netEarned).toLocaleString()}.`,
+    impactSummary: `Rendimento de Ausência: ${isSuperavit ? '+' : ''}R$ ${netEarned.toLocaleString()} | ${cyclesPassed} ciclos fiscais apurados`,
+    timestamp: Date.now(),
+  };
+
+  const updatedState: PrefeitoCityState = {
+    ...state,
+    treasury: newTreasury,
+    economicCycle: {
+      ...(state.economicCycle || {
+        cycleDurationSeconds: FISCAL_CYCLE_SECONDS,
+        secondsRemaining: FISCAL_CYCLE_SECONDS,
+        autoTick: true,
+        lastCycleNet: state.netMonthly,
+        totalCyclesCompleted: 0,
+      }),
+      lastTickTimestamp: now,
+      secondsRemaining: FISCAL_CYCLE_SECONDS,
+      totalCyclesCompleted: (state.economicCycle?.totalCyclesCompleted || 0) + cyclesPassed,
+      lastCycleNet: netPerCycle,
+    },
+    gazetteFeed: [offlineArticle, ...state.gazetteFeed].slice(0, 30),
+  };
+
+  return {
+    state: recalculateMunicipalFinances(updatedState),
+    offlineReport: {
+      elapsedMinutes,
+      cyclesPassed,
+      netEarned,
+    },
+  };
+}
+
+// ==========================================
 // POLÍTICAS PÚBLICAS: SALÁRIO MÍNIMO & PISO
 // ==========================================
 export function setMinimumWagePolicy(
