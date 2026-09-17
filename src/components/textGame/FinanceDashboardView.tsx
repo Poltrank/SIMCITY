@@ -35,10 +35,20 @@ interface FinanceDashboardViewProps {
     focus: string
   ) => void;
   onUpdateTaxRates?: (rates: {
-    iptuPercent: number;
-    issPercent: number;
-    itbiPercent: number;
-    taxaIluminacaoCip: number;
+    iptuPercent?: number;
+    issPercent?: number;
+    itbiPercent?: number;
+    taxaIluminacaoCip?: number;
+    resPobresPercent?: number;
+    resMediosPercent?: number;
+    resRicosPercent?: number;
+    comPobresPercent?: number;
+    comMediosPercent?: number;
+    comRicosPercent?: number;
+    indPobresPercent?: number;
+    indMediosPercent?: number;
+    indRicosPercent?: number;
+    [key: string]: any;
   }) => void;
   onOpenLoansModal?: () => void;
 }
@@ -83,6 +93,9 @@ export const FinanceDashboardView: React.FC<FinanceDashboardViewProps> = ({
     issPercent: 3.5,
     itbiPercent: 2.0,
     taxaIluminacaoCip: 18.0,
+    resPobresPercent: 6.0,
+    resMediosPercent: 8.5,
+    resRicosPercent: 11.0,
   };
 
   const loans = cityState.intermunicipalLoans || [];
@@ -91,6 +104,9 @@ export const FinanceDashboardView: React.FC<FinanceDashboardViewProps> = ({
 
   const rev = cityState.revenueBreakdown || {
     iptu: Math.round(cityState.monthlyRevenue * 0.28),
+    resPobres: Math.round(cityState.monthlyRevenue * 0.06),
+    resMedios: Math.round(cityState.monthlyRevenue * 0.14),
+    resRicos: Math.round(cityState.monthlyRevenue * 0.08),
     iss: Math.round(cityState.monthlyRevenue * 0.32),
     fpmIcms: Math.round(cityState.monthlyRevenue * 0.25),
     multasTransito: 55000,
@@ -102,10 +118,19 @@ export const FinanceDashboardView: React.FC<FinanceDashboardViewProps> = ({
 
   const exp = cityState.expenseBreakdown || {
     payroll: cityState.payrollExpense,
-    saudeSus: Math.round(cityState.monthlyExpenses * 0.2),
-    educacaoMerenda: Math.round(cityState.monthlyExpenses * 0.18),
+    previdenciaServidores: Math.round(cityState.payrollExpense * 0.14),
+    saudeSus: Math.round(cityState.monthlyExpenses * 0.16),
+    medicamentosInsumosSaude: 28000,
+    educacaoMerenda: Math.round(cityState.monthlyExpenses * 0.13),
+    transporteEscolarMerenda: 24000,
+    assistenciaSocialVulneraveis: 22000,
     segurancaGuarda: 40000,
-    manutencaoUrbana: Math.round(cityState.monthlyExpenses * 0.1),
+    limpezaResiduosAterro: 32000,
+    combustivelManutencaoFrota: 26000,
+    energiaPrediosPublicos: 22000,
+    sistemasDigitaisTi: 15000,
+    manutencaoUrbana: Math.round(cityState.monthlyExpenses * 0.08),
+    manutencaoMegaObras: 0,
     subsidioEstatais: 35000,
     amortizacaoDivida: Math.round(cityState.monthlyExpenses * 0.05),
     total: cityState.monthlyExpenses,
@@ -353,15 +378,49 @@ export const FinanceDashboardView: React.FC<FinanceDashboardViewProps> = ({
           </div>
 
           <div className="space-y-2 text-xs">
-            <div className="flex justify-between py-1 border-b border-slate-800/50">
-              <span className="text-slate-400">IPTU & Contribuição Predial</span>
-              <span className="font-semibold text-slate-200">
-                R$ {rev.iptu.toLocaleString()}
-              </span>
+            {/* IPTU por Classes Sociais */}
+            <div className="bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/80 space-y-1.5">
+              <div className="flex justify-between items-center text-slate-300 font-semibold">
+                <span className="flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-emerald-400" />
+                  IPTU Total Arrecadado
+                </span>
+                <span className="text-emerald-400 font-bold">R$ {rev.iptu.toLocaleString()}</span>
+              </div>
+              <div className="grid grid-cols-3 gap-1.5 pt-1 text-[11px] border-t border-slate-800/60">
+                <div className="bg-slate-900/80 p-1.5 rounded border border-slate-800">
+                  <div className="text-sky-400 font-bold flex items-center justify-between">
+                    <span>Cl. Baixa</span>
+                    <span className="text-[10px] text-slate-400 font-mono">{taxRates.resPobresPercent ?? 6}%</span>
+                  </div>
+                  <div className="text-slate-200 font-semibold mt-0.5">
+                    R$ {(rev.resPobres ?? Math.round(rev.iptu * 0.22)).toLocaleString()}
+                  </div>
+                </div>
+                <div className="bg-slate-900/80 p-1.5 rounded border border-slate-800">
+                  <div className="text-emerald-400 font-bold flex items-center justify-between">
+                    <span>Cl. Média</span>
+                    <span className="text-[10px] text-slate-400 font-mono">{taxRates.resMediosPercent ?? 8.5}%</span>
+                  </div>
+                  <div className="text-slate-200 font-semibold mt-0.5">
+                    R$ {(rev.resMedios ?? Math.round(rev.iptu * 0.48)).toLocaleString()}
+                  </div>
+                </div>
+                <div className="bg-slate-900/80 p-1.5 rounded border border-slate-800">
+                  <div className="text-amber-400 font-bold flex items-center justify-between">
+                    <span>Cl. Alta / Ricos</span>
+                    <span className="text-[10px] text-slate-400 font-mono">{taxRates.resRicosPercent ?? 11}%</span>
+                  </div>
+                  <div className="text-slate-200 font-semibold mt-0.5">
+                    R$ {(rev.resRicos ?? Math.round(rev.iptu * 0.30)).toLocaleString()}
+                  </div>
+                </div>
+              </div>
             </div>
+
             <div className="flex justify-between py-1 border-b border-slate-800/50">
               <span className="text-slate-400">
-                ISS (Serviços, Comércio & Turismo)
+                ISS (Serviços, Comércio & Turismo - {taxRates.issPercent ?? 3.5}%)
               </span>
               <span className="font-semibold text-slate-200">
                 R$ {rev.iss.toLocaleString()}
@@ -414,32 +473,56 @@ export const FinanceDashboardView: React.FC<FinanceDashboardViewProps> = ({
           <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
             <h3 className="font-bold text-sm uppercase tracking-wider text-rose-400 flex items-center gap-1.5">
               <TrendingDown className="w-4 h-4" />
-              Despesas & Custeio Público (a cada 1 min)
+              Despesas & Custeio Público Municipal
             </h3>
             <span className="font-black text-rose-400 tabular-nums text-base">
               -R$ {cityState.monthlyExpenses.toLocaleString()}
             </span>
           </div>
 
-          <div className="space-y-2 text-xs">
+          <div className="space-y-1.5 text-xs">
             <div className="flex justify-between py-1 border-b border-slate-800/50">
               <span className="text-slate-400">
-                Folha Salarial (Piso: R$ {cityState.minimumWage?.toLocaleString() || '1.412'})
+                Folha Salarial dos Servidores (Piso: R$ {cityState.minimumWage?.toLocaleString() || '1.412'})
               </span>
               <span className="font-semibold text-rose-300">
                 R$ {exp.payroll.toLocaleString()}
               </span>
             </div>
             <div className="flex justify-between py-1 border-b border-slate-800/50">
-              <span className="text-slate-400">Custeio SUS (Postos de Saúde & Remédios)</span>
+              <span className="text-slate-400">Previdência Municipal dos Servidores (RPPS)</span>
+              <span className="font-semibold text-rose-300/90">
+                R$ {(exp.previdenciaServidores ?? Math.round(exp.payroll * 0.14)).toLocaleString()}
+              </span>
+            </div>
+            <div className="flex justify-between py-1 border-b border-slate-800/50">
+              <span className="text-slate-400">Custeio Saúde SUS (Hospitais, UPAs & Equipes Médicas)</span>
               <span className="font-semibold text-slate-200">
                 R$ {exp.saudeSus.toLocaleString()}
               </span>
             </div>
             <div className="flex justify-between py-1 border-b border-slate-800/50">
-              <span className="text-slate-400">Educação (Merenda & Escolas)</span>
+              <span className="text-slate-400">Medicamentos de Alto Custo, Insumos & Farmácia Básica</span>
+              <span className="font-semibold text-slate-200">
+                R$ {(exp.medicamentosInsumosSaude ?? 28000).toLocaleString()}
+              </span>
+            </div>
+            <div className="flex justify-between py-1 border-b border-slate-800/50">
+              <span className="text-slate-400">Educação (Manutenção de Escolas & Creches)</span>
               <span className="font-semibold text-slate-200">
                 R$ {exp.educacaoMerenda.toLocaleString()}
+              </span>
+            </div>
+            <div className="flex justify-between py-1 border-b border-slate-800/50">
+              <span className="text-slate-400">Transporte Escolar Gratuito & Merenda Nutritiva</span>
+              <span className="font-semibold text-slate-200">
+                R$ {(exp.transporteEscolarMerenda ?? 24000).toLocaleString()}
+              </span>
+            </div>
+            <div className="flex justify-between py-1 border-b border-slate-800/50">
+              <span className="text-slate-400">Assistência Social, CRAS, Abrigos & Famílias Vulneráveis</span>
+              <span className="font-semibold text-slate-200">
+                R$ {(exp.assistenciaSocialVulneraveis ?? 22000).toLocaleString()}
               </span>
             </div>
             <div className="flex justify-between py-1 border-b border-slate-800/50">
@@ -449,11 +532,31 @@ export const FinanceDashboardView: React.FC<FinanceDashboardViewProps> = ({
               </span>
             </div>
             <div className="flex justify-between py-1 border-b border-slate-800/50">
-              <span className="text-slate-400">Manutenção Urbana, Asfalto & Iluminação</span>
+              <span className="text-slate-400">Limpeza Urbana, Coleta de Lixo & Aterro Sanitário</span>
+              <span className="font-semibold text-slate-200">
+                R$ {(exp.limpezaResiduosAterro ?? 32000).toLocaleString()}
+              </span>
+            </div>
+            <div className="flex justify-between py-1 border-b border-slate-800/50">
+              <span className="text-slate-400">Combustível, Óleo & Manutenção da Frota Municipal</span>
+              <span className="font-semibold text-slate-200">
+                R$ {(exp.combustivelManutencaoFrota ?? 26000).toLocaleString()}
+              </span>
+            </div>
+            <div className="flex justify-between py-1 border-b border-slate-800/50">
+              <span className="text-slate-400">Manutenção Urbana, Asfalto, Galerias & Iluminação</span>
               <span className="font-semibold text-slate-200">
                 R$ {exp.manutencaoUrbana.toLocaleString()}
               </span>
             </div>
+            {(exp.manutencaoMegaObras ?? 0) > 0 && (
+              <div className="flex justify-between py-1 border-b border-slate-800/50 text-amber-300">
+                <span className="font-medium">
+                  🏗️ Custeio Operacional de Megaprojetos (Metrô, Aeroporto, Anel Viário, Hospital)
+                </span>
+                <span className="font-bold">-R$ {exp.manutencaoMegaObras.toLocaleString()}</span>
+              </div>
+            )}
             {exp.subsidioEstatais > 0 && (
               <div className="flex justify-between py-1 border-b border-slate-800/50 text-amber-300">
                 <span className="font-medium">
@@ -763,29 +866,49 @@ export const FinanceDashboardView: React.FC<FinanceDashboardViewProps> = ({
             </div>
           </div>
 
-          {/* TRIBUTOS E IMPOSTOS MUNICIPAIS */}
-          <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="font-bold text-xs text-emerald-400 flex items-center gap-1.5">
-                🏛️ Código Tributário (Impostos)
+          {/* TRIBUTOS E IMPOSTOS MUNICIPAIS POR CLASSES SOCIAIS */}
+          <div className="bg-slate-950/80 p-4 rounded-xl border border-emerald-500/40 space-y-3.5 shadow-sm col-span-1 md:col-span-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-slate-800 pb-2">
+              <div>
+                <div className="font-bold text-xs text-emerald-400 flex items-center gap-1.5">
+                  🏛️ Gestão Tributária por Classes Sociais & Atividades (SimCity)
+                </div>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  A Prefeitura define as alíquotas de imposto diretamente sobre as classes baixa, média e alta. O equilíbrio fiscal é vital: impostos muito altos reduzem a aprovação e atraem evasão, enquanto impostos baixos atraem novos moradores e empresas.
+                </p>
               </div>
-              <span className="text-[10px] text-slate-400">IPTU / ISS / CIP</span>
+              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 shrink-0">
+                Poder Executivo Municipal
+              </span>
             </div>
 
-            <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">IPTU Predial & Territorial:</span>
-                <div className="flex items-center gap-1">
-                  {[0.8, 1.2, 1.8].map((rate) => (
+            {/* SELETORES POR CLASSE SOCIAL */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {/* CLASSE BAIXA */}
+              <div className="bg-slate-900/90 p-3 rounded-lg border border-sky-900/40 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-sky-400 flex items-center gap-1">
+                    👥 Classe Baixa / Popular
+                  </span>
+                  <span className="text-[11px] font-mono font-bold text-sky-200 bg-sky-950/80 px-2 py-0.5 rounded border border-sky-700">
+                    {taxRates.resPobresPercent ?? 6.0}%
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-400 leading-relaxed">
+                  Famílias de baixa renda e vilas populares. Alíquotas brandas elevam a aprovação popular e o consumo local.
+                </p>
+                <div className="flex items-center gap-1 pt-1">
+                  {[4.0, 6.0, 8.0, 10.0].map((rate) => (
                     <button
                       key={rate}
-                      onClick={() =>
-                        onUpdateTaxRates?.({ ...taxRates, iptuPercent: rate })
-                      }
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        taxRates.iptuPercent === rate
-                          ? 'bg-emerald-500 text-slate-950'
-                          : 'bg-slate-800 text-slate-300'
+                      onClick={() => {
+                        sounds.playClick();
+                        onUpdateTaxRates?.({ ...taxRates, resPobresPercent: rate });
+                      }}
+                      className={`flex-1 py-1 rounded text-[10px] font-bold transition-all ${
+                        (taxRates.resPobresPercent ?? 6.0) === rate
+                          ? 'bg-sky-500 text-slate-950 font-black shadow-sm'
+                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                       }`}
                     >
                       {rate}%
@@ -794,19 +917,89 @@ export const FinanceDashboardView: React.FC<FinanceDashboardViewProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">ISS Comércio & Serviços:</span>
+              {/* CLASSE MÉDIA */}
+              <div className="bg-slate-900/90 p-3 rounded-lg border border-emerald-900/40 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
+                    👔 Classe Média Trabalhadora
+                  </span>
+                  <span className="text-[11px] font-mono font-bold text-emerald-200 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-700">
+                    {taxRates.resMediosPercent ?? 8.5}%
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-400 leading-relaxed">
+                  Trabalhadores urbanos, servidores e profissionais liberais. É a espinha dorsal da arrecadação municipal.
+                </p>
+                <div className="flex items-center gap-1 pt-1">
+                  {[6.0, 8.5, 11.0, 13.0].map((rate) => (
+                    <button
+                      key={rate}
+                      onClick={() => {
+                        sounds.playClick();
+                        onUpdateTaxRates?.({ ...taxRates, resMediosPercent: rate });
+                      }}
+                      className={`flex-1 py-1 rounded text-[10px] font-bold transition-all ${
+                        (taxRates.resMediosPercent ?? 8.5) === rate
+                          ? 'bg-emerald-500 text-slate-950 font-black shadow-sm'
+                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      }`}
+                    >
+                      {rate}%
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* CLASSE ALTA / RICOS */}
+              <div className="bg-slate-900/90 p-3 rounded-lg border border-amber-900/40 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-amber-400 flex items-center gap-1">
+                    💎 Classe Alta & Ricos
+                  </span>
+                  <span className="text-[11px] font-mono font-bold text-amber-200 bg-amber-950/80 px-2 py-0.5 rounded border border-amber-700">
+                    {taxRates.resRicosPercent ?? 11.0}%
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-400 leading-relaxed">
+                  Mansões, coberturas e condomínios de luxo. Alta contribuição por imóvel; moderação atrai grandes investidores.
+                </p>
+                <div className="flex items-center gap-1 pt-1">
+                  {[8.0, 11.0, 14.0, 18.0].map((rate) => (
+                    <button
+                      key={rate}
+                      onClick={() => {
+                        sounds.playClick();
+                        onUpdateTaxRates?.({ ...taxRates, resRicosPercent: rate });
+                      }}
+                      className={`flex-1 py-1 rounded text-[10px] font-bold transition-all ${
+                        (taxRates.resRicosPercent ?? 11.0) === rate
+                          ? 'bg-amber-500 text-slate-950 font-black shadow-sm'
+                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      }`}
+                    >
+                      {rate}%
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* IMPOSTOS COMPLEMENTARES: ISS E TAXA CIP */}
+            <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-slate-800 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="text-slate-400 font-medium">ISS Empresas & Serviços:</span>
                 <div className="flex items-center gap-1">
                   {[2.5, 3.5, 5.0].map((rate) => (
                     <button
                       key={rate}
-                      onClick={() =>
-                        onUpdateTaxRates?.({ ...taxRates, issPercent: rate })
-                      }
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        taxRates.issPercent === rate
-                          ? 'bg-emerald-500 text-slate-950'
-                          : 'bg-slate-800 text-slate-300'
+                      onClick={() => {
+                        sounds.playClick();
+                        onUpdateTaxRates?.({ ...taxRates, issPercent: rate });
+                      }}
+                      className={`px-2.5 py-1 rounded text-[10px] font-bold transition-colors ${
+                        (taxRates.issPercent ?? 3.5) === rate
+                          ? 'bg-emerald-500 text-slate-950 font-black'
+                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                       }`}
                     >
                       {rate}%
@@ -815,22 +1008,23 @@ export const FinanceDashboardView: React.FC<FinanceDashboardViewProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Taxa Iluminação (CIP/mês):</span>
+              <div className="flex items-center gap-2">
+                <span className="text-slate-400 font-medium">Taxa CIP Iluminação:</span>
                 <div className="flex items-center gap-1">
                   {[12, 18, 25].map((rate) => (
                     <button
                       key={rate}
-                      onClick={() =>
-                        onUpdateTaxRates?.({ ...taxRates, taxaIluminacaoCip: rate })
-                      }
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        taxRates.taxaIluminacaoCip === rate
-                          ? 'bg-emerald-500 text-slate-950'
-                          : 'bg-slate-800 text-slate-300'
+                      onClick={() => {
+                        sounds.playClick();
+                        onUpdateTaxRates?.({ ...taxRates, taxaIluminacaoCip: rate });
+                      }}
+                      className={`px-2.5 py-1 rounded text-[10px] font-bold transition-colors ${
+                        (taxRates.taxaIluminacaoCip ?? 18) === rate
+                          ? 'bg-amber-500 text-slate-950 font-black'
+                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                       }`}
                     >
-                      R$ {rate}
+                      R$ {rate}/mês
                     </button>
                   ))}
                 </div>

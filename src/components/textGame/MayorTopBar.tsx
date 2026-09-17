@@ -328,7 +328,7 @@ export const MayorTopBar: React.FC<MayorTopBarProps> = ({
             Mesa de Despachos
             {pendingDispatchesCount > 0 && (
               <span className="px-1.5 py-0.2 text-[10px] font-black rounded-full bg-rose-600 text-white animate-pulse">
-                {pendingDispatchesCount} em andamento (1 min)
+                {pendingDispatchesCount} em andamento (30s)
               </span>
             )}
           </button>

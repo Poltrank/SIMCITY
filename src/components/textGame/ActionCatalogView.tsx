@@ -12,6 +12,7 @@ import {
   ArrowRight,
   AlertCircle,
   HelpCircle,
+  Building2,
 } from 'lucide-react';
 import { MunicipalActionDef, ActionCategory, PrefeitoCityState } from '../../types/textGame';
 import { MUNICIPAL_ACTIONS } from '../../data/municipalActions';
@@ -33,11 +34,13 @@ export const ActionCatalogView: React.FC<ActionCatalogViewProps> = ({
 
   const categories = [
     { id: 'all', label: 'Todas as Secretarias', icon: Landmark },
+    { id: 'desenvolvimento_economico', label: 'Megaprojetos & Obras Caras', icon: Building2 },
     { id: 'recursos_naturais', label: 'Recursos Naturais & Energia', icon: Pickaxe },
     { id: 'bndes_financas', label: 'BNDES & Finanças Públicas', icon: Landmark },
     { id: 'turismo_cultura', label: 'Turismo, Eventos & Cultura', icon: Palmtree },
     { id: 'industria_empregos', label: 'Indústria & Empregos', icon: Factory },
     { id: 'servicos_publicos', label: 'Saúde, Educação & Segurança', icon: ShieldAlert },
+    { id: 'habitacao_mobilidade', label: 'Habitação & Metrô', icon: Building2 },
     { id: 'politica_camara', label: 'Câmara & Leis Municipais', icon: Scroll },
   ];
 
@@ -108,7 +111,7 @@ export const ActionCatalogView: React.FC<ActionCatalogViewProps> = ({
             </h2>
             <p className="text-xs md:text-sm text-slate-300 mt-1 max-w-2xl">
               Escolha as diretrizes de desenvolvimento da cidade. Cada assinatura despacha o processo para
-              licitação e auditoria por <strong className="text-amber-300">1 minuto cronometrado</strong>.
+              licitação e auditoria por <strong className="text-amber-300 font-bold">30 segundos cronometrados</strong>.
             </p>
           </div>
 
@@ -256,7 +259,7 @@ export const ActionCatalogView: React.FC<ActionCatalogViewProps> = ({
                     }}
                     className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md transition-transform active:scale-95 whitespace-nowrap"
                   >
-                    <span>Assinar e Protocolar (1 min)</span>
+                    <span>Assinar e Protocolar (30s)</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 ) : (

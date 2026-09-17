@@ -2,27 +2,15 @@ import { MunicipalActionDef } from '../types/textGame';
 
 /**
  * Escalonamento de Duração por Custo:
- * Construções e projetos mais caros levam mais minutos para tramitar e concluir,
- * enquanto coisas mais baratas são rápidas e fáceis.
+ * Conforme determinação do Gabinete do Prefeito, o Tempo Oficial do Contador é fixado em 30 segundos
+ * para celeridade na tramitação e execução dos despachos e obras públicas.
  */
-export function getActionDurationMs(cost: number): number {
-  if (cost <= 40000) return 60 * 1000; // 1 minuto (ações baratas e rápidas: decretos, feiras, mutirão)
-  if (cost <= 120000) return 2 * 60 * 1000; // 2 minutos (iluminação, viaturas, pequenas reformas)
-  if (cost <= 350000) return 3 * 60 * 1000; // 3 minutos (sondagem de ouro, postos de saúde, asfalto)
-  if (cost <= 800000) return 4 * 60 * 1000; // 4 minutos (usina solar, UPAs, polo tecnológico)
-  if (cost <= 1500000) return 6 * 60 * 1000; // 6 minutos (poço petróleo onshore, parque eólico, hospital)
-  if (cost <= 3000000) return 8 * 60 * 1000; // 8 minutos (pré-sal offshore, porto marítimo, ferrovia)
-  return 10 * 60 * 1000; // 10 minutos (megaobras de grande porte)
+export function getActionDurationMs(_cost?: number): number {
+  return 30 * 1000; // 30 segundos oficiais para todos os despachos e obras municipais
 }
 
-export function formatActionDuration(durationMs: number): string {
-  const totalSeconds = Math.round(durationMs / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  if (seconds === 0) {
-    return `${minutes} minuto${minutes > 1 ? 's' : ''}`;
-  }
-  return `${minutes}m ${seconds}s`;
+export function formatActionDuration(_durationMs?: number): string {
+  return '30 segundos';
 }
 
 const RAW_MUNICIPAL_ACTIONS: MunicipalActionDef[] = [
@@ -776,19 +764,184 @@ const RAW_MUNICIPAL_ACTIONS: MunicipalActionDef[] = [
     expectedOutcome: '18km de BRT, 40 biarticulados, tempo de viagem cai pela metade, satisfação dos usuários sobe para 88%.',
     riskFactor: 'Baixo',
   },
+
+  // ==========================================
+  // 8. GRANDES MEGAPROJETOS & OBRAS ESTRUTURANTES (ALTO CUSTO)
+  // ==========================================
+  {
+    id: 'complexo_hospitalar_oncologico',
+    title: 'Mega Complexo Hospitalar Universitário & Centro Oncológico',
+    category: 'servicos_publicos',
+    categoryLabel: 'Serviços Públicos',
+    badge: '🏥 Alta Complexidade',
+    shortDesc: 'Hospital de 450 leitos, centro oncológico, hemodiálise e heliponto para zerar filas regionais.',
+    fullDesc:
+      'A maior obra hospitalar da história do município. Transforma a cidade em polo médico de referência, atrai 400 médicos especialistas, enfermeiros e pesquisadores, salvando milhares de vidas e aliviando a rede SUS de 15 municípios vizinhos.',
+    cost: 5800000,
+    durationMs: 30000,
+    requirements: {
+      minTreasury: 5800000,
+      minPopulation: 35000,
+    },
+    bureaucracyPhases: [
+      { second: 0, label: 'Licitação internacional e aprovação do projeto no Ministério da Saúde e ANVISA', department: 'Sec. de Saúde' },
+      { second: 8, label: 'Concretagem das torres de internação, centros cirúrgicos e heliponto', department: 'Sec. de Obras' },
+      { second: 16, label: 'Instalação de aceleradores lineares para radioterapia e 60 leitos de UTI', department: 'Equipamentos Médicos' },
+      { second: 24, label: 'Inauguração do complexo e integração com a faculdade de medicina', department: 'Gabinete do Prefeito' },
+    ],
+    expectedOutcome: 'Saúde municipal atinge nível de excelência (+45%), atrai 6.000 moradores de classe média e alta, mas gera custo mensal de manutenção de R$ 60k/mês.',
+    riskFactor: 'Médio',
+  },
+  {
+    id: 'anel_viario_metropolitano',
+    title: 'Anel Viário Perimetral & Viadutos Estaiados de Ligação Regional',
+    category: 'desenvolvimento_economico',
+    categoryLabel: 'Desenvolvimento Econômico',
+    badge: '🛣️ Anel Viário 42km',
+    shortDesc: '42km de rodovia duplicada contornando a cidade para desviar caminhões pesados e interligar indústrias.',
+    fullDesc:
+      'Retira mais de 5.000 carretas diárias do centro urbano. Cria novos eixos de desenvolvimento imobiliário e logístico, reduz acidentes fatais em 70% e conecta o distrito fabril às rodovias federais com viadutos modernos e iluminação 100% solar.',
+    cost: 7200000,
+    durationMs: 30000,
+    requirements: {
+      minTreasury: 7200000,
+    },
+    bureaucracyPhases: [
+      { second: 0, label: 'Desapropriação da faixa de domínio e licenciamento ambiental estadual', department: 'Procuradoria Geral' },
+      { second: 8, label: 'Terraplanagem pesada e estaqueamento das pontes e viadutos estaiados', department: 'Sec. de Infraestrutura' },
+      { second: 16, label: 'Pavimentação em asfalto polímero de alta durabilidade e praças de pesagem', department: 'Consórcio Viário' },
+      { second: 24, label: 'Liberação do tráfego expresso e inauguração dos arcos perimetrais', department: 'Gabinete do Prefeito' },
+    ],
+    expectedOutcome: 'Infraestrutura +35%, gera 2.800 empregos logísticos, atrai grandes transportadoras e arrecadação de ISS salta +R$ 140k/mês.',
+    riskFactor: 'Baixo',
+  },
+  {
+    id: 'aeroporto_cargas_internacional',
+    title: 'Aeroporto Regional de Cargas & Terminal Internacional de Passageiros',
+    category: 'desenvolvimento_economico',
+    categoryLabel: 'Desenvolvimento Econômico',
+    badge: '✈️ Aeroporto & Logística',
+    shortDesc: 'Pista de 3.200m para cargueiros Boeing 777, terminal de passageiros e alfândega da Receita Federal.',
+    fullDesc:
+      'Coloca a cidade na rota internacional de comércio e turismo. Permite exportação direta de produtos agrícolas e industriais sem depender da capital. Atrai voos diários de grandes companhias e milhares de empresários e turistas.',
+    cost: 11500000,
+    durationMs: 30000,
+    requirements: {
+      minTreasury: 11500000,
+      minPopulation: 40000,
+    },
+    bureaucracyPhases: [
+      { second: 0, label: 'Homologação na ANAC, DECEA e Receita Federal para terminal alfandegado', department: 'ANAC / Ministério dos Portos' },
+      { second: 8, label: 'Construção da pista de pouso para aeronaves de grande porte e pistas de táxi', department: 'Engenharia Aeronáutica' },
+      { second: 16, label: 'Ereção do terminal de passageiros climatizado e galpões de carga refrigerada', department: 'Consórcio Aeroportuário' },
+      { second: 24, label: 'Pouso inaugural de aeronave comercial e início das operações alfandegadas', department: 'Gabinete do Prefeito' },
+    ],
+    expectedOutcome: 'Turismo +4.000/mês, gera 4.200 empregos, novas receitas de tarifas e ISS aeroportuário (+R$ 260k/mês), com despesa operacional de R$ 75k/mês.',
+    riskFactor: 'Médio',
+  },
+  {
+    id: 'parque_tecnologico_ia_aeroespacial',
+    title: 'Mega Parque Tecnológico, Inteligência Artificial & Supercomputação',
+    category: 'desenvolvimento_economico',
+    categoryLabel: 'Desenvolvimento Econômico',
+    badge: '💻 Vale do Silício Local',
+    shortDesc: 'Campus de inovação para data centers de IA, empresas de software, aeroespacial e nanotecnologia.',
+    fullDesc:
+      'Concede incentivos fiscais para fixar os cérebros mais brilhantes da região. Cria incubadoras de unicórnios, laboratórios de IA e robótica. Multiplica os salários médios da cidade e atrai a instalação de multinacionais com empregos que pagam mais de R$ 15.000.',
+    cost: 8900000,
+    durationMs: 30000,
+    requirements: {
+      minTreasury: 8900000,
+    },
+    bureaucracyPhases: [
+      { second: 0, label: 'Criação do marco legal de inovação municipal e zona franca de tecnologia', department: 'Sec. de Ciência & Tecnologia' },
+      { second: 8, label: 'Instalação de rede de fibra óptica quântica redundante e subestação dedicada', department: 'Telebrás / Infra TI' },
+      { second: 16, label: 'Construção do edifício inteligente do supercomputador e centro de pesquisa', department: 'Parque Tecnológico' },
+      { second: 24, label: 'Instalação das primeiras 45 startups e empresas de alta tecnologia', department: 'Gabinete do Prefeito' },
+    ],
+    expectedOutcome: 'Explosão de arrecadação do ISS digital e IPTU de classes ricas (+R$ 210k/mês), 3.500 empregos de elite, com despesa mensal de fomento de R$ 55k/mês.',
+    riskFactor: 'Baixo',
+  },
+  {
+    id: 'macrodrenagem_subterranea_inundacoes',
+    title: 'Macro-Drenagem Pluvial Subterrânea & Pôlderes Contra Enchentes',
+    category: 'servicos_publicos',
+    categoryLabel: 'Serviços Públicos',
+    badge: '🌊 Blindagem Anti-Enchente',
+    shortDesc: 'Piscinões subterrâneos com bombas de alta vazão e canalização de rios para zerar inundações por 50 anos.',
+    fullDesc:
+      'Obras monumentais de engenharia civil que passam por debaixo de avenidas e bairros. Acaba definitivamente com o terror das enchentes nos períodos de tempestades tropicais, valorizando imóveis residenciais e eliminando perdas do comércio.',
+    cost: 4900000,
+    durationMs: 30000,
+    requirements: {
+      minTreasury: 4900000,
+    },
+    bureaucracyPhases: [
+      { second: 0, label: 'Estudo hidrológico de bacia hidrográfica e modelagem 3D de cheias centenárias', department: 'Defesa Civil / ANA' },
+      { second: 8, label: 'Escavação dos piscinões subterrâneos de contenção de até 150 milhões de litros', department: 'Sec. de Obras' },
+      { second: 16, label: 'Instalação das comportas automatizadas e bombas de drenagem de alta pressão', department: 'Engenharia Hídrica' },
+      { second: 24, label: 'Conexão das galerias e testes de escoamento no primeiro temporal do ano', department: 'Gabinete do Prefeito' },
+    ],
+    expectedOutcome: 'Zera riscos de inundações, valorização imobiliária geral de +18%, aprovação popular sobe +20%, custo de bombeamento de R$ 35k/mês.',
+    riskFactor: 'Baixo',
+  },
+  {
+    id: 'termeletrica_gas_natural',
+    title: 'Complexo de Geração a Gás Natural & Transição Energética (250 MW)',
+    category: 'recursos_naturais',
+    categoryLabel: 'Recursos Naturais',
+    badge: '⚡ Usina Termelétrica',
+    shortDesc: 'Usina termelétrica de ciclo combinado a gás de 250 MW para autossuficiência e venda ao SIN.',
+    fullDesc:
+      'Conecta-se diretamente aos gasodutos municipais e bacias de gás. Gera energia elétrica confiável sem risco de apagões na estiagem. O excedente produzido é vendido para a rede elétrica nacional (SIN), garantindo faturamento mensal de milhões para a prefeitura.',
+    cost: 9800000,
+    durationMs: 30000,
+    requirements: {
+      minTreasury: 9800000,
+    },
+    bureaucracyPhases: [
+      { second: 0, label: 'Leilão de energia na ANEEL e outorga da ONS para injeção no SIN', department: 'ANEEL / MME' },
+      { second: 8, label: 'Instalação das turbinas de alta eficiência e geradores de ciclo combinado', department: 'Consórcio Térmico' },
+      { second: 16, label: 'Construção da linha de transmissão de alta tensão e subestação elevadora', department: 'Sec. de Energia' },
+      { second: 24, label: 'Sincronização com o Sistema Interligado Nacional e início do despacho contínuo', department: 'Gabinete do Prefeito' },
+    ],
+    expectedOutcome: 'Produção de energia sobe +250 MW, gerando R$ 220.000/mês líquidos com venda de excedente, despesa de manutenção de R$ 80k/mês.',
+    riskFactor: 'Baixo',
+  },
+  {
+    id: 'expansao_metro_linha2_tatuzao',
+    title: 'Expansão da Linha 2 do Metrô Subterrâneo & Túneis Shield (Tatuzão)',
+    category: 'habitacao_mobilidade',
+    categoryLabel: 'Habitação & Mobilidade',
+    badge: '🚇 Metrô Linha 2',
+    shortDesc: '12km de novas linhas subterrâneas com 8 estações com escadas rolantes e trens autônomos.',
+    fullDesc:
+      'A maior obra metroviária já executada. Utiliza escavadeira Shield (Tatuzão) para perfurar túneis sem interditar as vias da superfície. Transporta 140 mil pessoas por dia, interligando a periferia aos centros financeiros e polos hospitalares.',
+    cost: 14500000,
+    durationMs: 30000,
+    requirements: {
+      minTreasury: 14500000,
+      minPopulation: 45000,
+    },
+    bureaucracyPhases: [
+      { second: 0, label: 'Descida da tuneladora Shield (Tatuzão) no poço de embocadura', department: 'Consórcio Metroviário' },
+      { second: 8, label: 'Escavação dos 12km de túneis e assentamento dos anéis de concreto', department: 'Companhia do Metrô' },
+      { second: 16, label: 'Montagem dos sistemas de sinalização CBTC e teste dos trens climatizados', department: 'Sec. de Transportes' },
+      { second: 24, label: 'Viagem inaugural com autoridades e abertura das 8 novas estações', department: 'Gabinete do Prefeito' },
+    ],
+    expectedOutcome: 'Infraestrutura atinge 98%, tempo de viagem cai 70%, gera R$ 180k/mês em bilhetagem e publicidade, com despesa de manutenção e tração de R$ 95k/mês.',
+    riskFactor: 'Baixo',
+  },
 ];
 
 export const MUNICIPAL_ACTIONS: MunicipalActionDef[] = RAW_MUNICIPAL_ACTIONS.map((action) => {
-  const durationMs = getActionDurationMs(action.cost);
-  const totalSec = Math.round(durationMs / 1000);
-  // Escalonar os segundos de cada fase burocrática proporcionalmente ao tempo total da obra
-  const phases = action.bureaucracyPhases.map((phase, idx, arr) => {
-    const fraction = idx / arr.length;
-    return {
-      ...phase,
-      second: Math.round(fraction * totalSec),
-    };
-  });
+  const durationMs = 30 * 1000; // 30 segundos oficiais para todos os despachos
+  const phases = [
+    { second: 0, label: action.bureaucracyPhases[0]?.label || 'Abertura do processo e licitação oficial', department: action.bureaucracyPhases[0]?.department || 'Sec. Municipal' },
+    { second: 8, label: action.bureaucracyPhases[1]?.label || 'Mobilização técnica e contratação', department: action.bureaucracyPhases[1]?.department || 'Corpo Técnico' },
+    { second: 16, label: action.bureaucracyPhases[2]?.label || 'Execução estrutural e vistorias de campo', department: action.bureaucracyPhases[2]?.department || 'Fiscalização' },
+    { second: 24, label: action.bureaucracyPhases[3]?.label || 'Homologação e publicação no Diário Oficial', department: 'Gabinete do Prefeito' },
+  ];
 
   return {
     ...action,

@@ -44,7 +44,7 @@ export const ActiveDispatchPanel: React.FC<ActiveDispatchPanelProps> = ({
             <p className="text-sm text-slate-300 mt-1 max-w-2xl leading-relaxed">
               Na administração pública real, todo contrato, pedido de verba ao BNDES ou prospecção mineral
               passa por auditoria, câmara e licitação. Cada ação leva{' '}
-              <strong className="text-amber-300 font-bold">1 minuto (60 segundos)</strong> para ser protocolada e
+              <strong className="text-amber-300 font-bold">30 segundos</strong> para ser protocolada e
               homologada pelo corpo técnico.
             </p>
           </div>
@@ -63,14 +63,14 @@ export const ActiveDispatchPanel: React.FC<ActiveDispatchPanelProps> = ({
         </div>
       </div>
 
-      {/* Lista de Processos em Andamento (Contador de 1 minuto) */}
+      {/* Lista de Processos em Andamento (Contador Oficial de 30 segundos) */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
             <Clock className="w-4 h-4 text-amber-400 animate-spin" />
             Processos em Tramitação Ativa ({activeList.length})
           </h3>
-          <span className="text-xs text-slate-400">Tempo oficial: 60s por processo</span>
+          <span className="text-xs text-amber-400 font-bold">Tempo oficial: 30s por processo</span>
         </div>
 
         {activeList.length === 0 ? (

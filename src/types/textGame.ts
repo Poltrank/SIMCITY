@@ -5,6 +5,7 @@ export type ActionCategory =
   | 'bndes_financas'
   | 'turismo_cultura'
   | 'industria_empregos'
+  | 'desenvolvimento_economico'
   | 'servicos_publicos'
   | 'politica_camara'
   | 'habitacao_mobilidade';
@@ -272,6 +273,10 @@ export interface PrefeitoCityState {
     combustivelManutencaoFrota?: number; // Combustível & Manutenção da Frota Municipal (SAMU, Ônibus, Viaturas)
     energiaPrediosPublicos?: number; // Conta de Luz de Escolas, UPAs, Semáforos e Prefeitura
     sistemasDigitaisTi?: number; // Digitalização, Softwares de Saúde, IPTU Online & Nuvem
+    manutencaoMegaObras?: number; // Custeio Operacional de Grandes Equipamentos (Metrô, Hospital, Aeroporto, Viários)
+    medicamentosInsumosSaude?: number; // Medicamentos de Alto Custo, UPAs 24h & Insumos Clínicos
+    transporteEscolarMerenda?: number; // Transporte Escolar e Merenda Nutritiva Municipal
+    assistenciaSocialVulneraveis?: number; // Assistência Social, CRAS, Bom Prato & Programas Sociais
     bombeiros?: number;
     saneamento?: number;
     transporte?: number;

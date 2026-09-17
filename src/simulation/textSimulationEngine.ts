@@ -665,7 +665,7 @@ export function startMunicipalDispatch(
   if (state.activeDispatches.some((d) => d.actionId === actionId && !d.completed)) {
     return {
       success: false,
-      error: 'Este projeto já está tramitando na Mesa de Despachos. Aguarde a conclusão do processo de 1 minuto.',
+      error: 'Este projeto já está tramitando na Mesa de Despachos. Aguarde a conclusão do processo oficial de 30 segundos.',
       newState: state,
     };
   }
@@ -698,8 +698,8 @@ export function startMunicipalDispatch(
   }
 
   const now = Date.now();
-  const totalSeconds = Math.ceil(action.durationMs / 1000);
-  const durationMinutes = Math.max(1, Math.round(action.durationMs / 60000));
+  const officialDurationMs = 30 * 1000; // 30 segundos oficiais
+  const totalSeconds = 30;
 
   const newDispatch: ActiveDispatch = {
     id: 'disp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
@@ -709,8 +709,8 @@ export function startMunicipalDispatch(
     badge: action.badge,
     cost: action.cost,
     startTime: now,
-    durationMs: action.durationMs,
-    endTime: now + action.durationMs,
+    durationMs: officialDurationMs,
+    endTime: now + officialDurationMs,
     currentPhaseText: action.bureaucracyPhases[0].label,
     currentDepartment: action.bureaucracyPhases[0].department,
     progress: 0,
@@ -729,12 +729,8 @@ export function startMunicipalDispatch(
         source: 'Diário Oficial',
         type: 'decreto',
         dateStr: `${String(state.month).padStart(2, '0')}/${state.year}`,
-        body: `O Gabinete do Prefeito publicou a abertura do processo administrativo. O projeto terá tramitação e execução de ${durationMinutes} minuto${
-          durationMinutes > 1 ? 's' : ''
-        } em conformidade com as regras de licitação pública e volume de investimento de R$ ${action.cost.toLocaleString()}.`,
-        impactSummary: `Tramitando no órgão competente. Desfecho estimado em ${durationMinutes} minuto${
-          durationMinutes > 1 ? 's' : ''
-        }.`,
+        body: `O Gabinete do Prefeito publicou a abertura do processo administrativo. O projeto terá tramitação e execução oficial de 30 segundos em conformidade com as regras de licitação pública e volume de investimento de R$ ${action.cost.toLocaleString()}.`,
+        impactSummary: `Tramitando no órgão competente. Desfecho estimado em 30 segundos.`,
         timestamp: Date.now(),
       },
       ...state.gazetteFeed.slice(0, 25),
@@ -801,9 +797,18 @@ export function updateDispatchesClock(
       continue;
     }
 
+    // Adequar qualquer processo ativo para o tempo oficial de 30 segundos (inclusive salvos anteriores)
+    let effectiveDurationMs = dispatch.durationMs;
+    let effectiveEndTime = dispatch.endTime;
+    if (effectiveDurationMs > 30000 || (effectiveEndTime - dispatch.startTime) > 30000) {
+      effectiveDurationMs = 30000;
+      effectiveEndTime = dispatch.startTime + 30000;
+      stateChanged = true;
+    }
+
     const elapsed = now - dispatch.startTime;
-    const progress = Math.min(1, elapsed / dispatch.durationMs);
-    const secondsRemaining = Math.max(0, Math.ceil((dispatch.endTime - now) / 1000));
+    const progress = Math.min(1, elapsed / effectiveDurationMs);
+    const secondsRemaining = Math.max(0, Math.min(30, Math.ceil((effectiveEndTime - now) / 1000)));
 
     // Phase lookup
     const actionDef = MUNICIPAL_ACTIONS.find((a) => a.id === dispatch.actionId);
@@ -821,8 +826,8 @@ export function updateDispatchesClock(
       }
     }
 
-    if (elapsed >= dispatch.durationMs) {
-      // 1 MINUTE EXPIRED! RESOLVE OUTCOME!
+    if (elapsed >= effectiveDurationMs) {
+      // 30 SEGUNDOS EXPIRADOS! RESOLVE OUTCOME!
       stateChanged = true;
       const outcome = resolveDispatchOutcome(dispatch, state, actionDef);
       newCompletedOutcomes.push(outcome);
@@ -895,6 +900,8 @@ export function updateDispatchesClock(
     } else {
       updatedDispatches.push({
         ...dispatch,
+        durationMs: effectiveDurationMs,
+        endTime: effectiveEndTime,
         progress,
         secondsRemaining,
         currentPhaseText: currentPhase,
@@ -1556,6 +1563,220 @@ function resolveDispatchOutcome(
       };
     }
 
+    case 'complexo_hospitalar_oncologico': {
+      return {
+        id: outcomeId,
+        actionId: dispatch.actionId,
+        actionTitle: dispatch.title,
+        category: dispatch.category,
+        success: true,
+        isExceptional: roll > 70,
+        headline: 'Mega Complexo Hospitalar Universitário Inaugurado com 450 Leitos e Centro Oncológico',
+        officialGazetteExcerpt:
+          'Em solenidade histórica, o Gabinete do Prefeito inaugurou o Complexo Hospitalar de Alta Complexidade. O hospital conta com 60 leitos de UTI, aceleradores lineares para radioterapia e heliponto médico, zerando a fila de cirurgias eletivas na região.',
+        detailedReport: [
+          '🏥 450 leitos hospitalares e 60 UTIs de última geração ativados.',
+          '💉 Centro oncológico municipal de referência para quimioterapia e radioterapia.',
+          '👨‍⚕️ Contratação de 400 médicos especialistas e 1.200 profissionais da saúde.',
+          '📈 Saúde pública atinge nível de excelência (+45% aprovação na saúde).',
+          '💳 Custeio de manutenção médica: +R$ 60.000/mês no orçamento de despesas.',
+        ],
+        impacts: {
+          jobsChange: 1600,
+          unemploymentChange: -0.8,
+          populationChange: 3500,
+          approvalChange: 18,
+          councilSupportChange: 10,
+          monthlyExpensesChange: 60000,
+        },
+        timestamp: Date.now(),
+        read: false,
+      };
+    }
+
+    case 'anel_viario_metropolitano': {
+      return {
+        id: outcomeId,
+        actionId: dispatch.actionId,
+        actionTitle: dispatch.title,
+        category: dispatch.category,
+        success: true,
+        isExceptional: roll > 65,
+        headline: 'Anel Viário Perimetral de 42km com Viadutos Estaiados Aberto ao Tráfego Pesado',
+        officialGazetteExcerpt:
+          'As pistas do Anel Viário Metropolitano foram homologadas e abertas. O projeto desviou o trânsito pesado de carretas do centro e conectou o parque industrial diretamente aos eixos logísticos estaduais.',
+        detailedReport: [
+          '🛣️ 42 km de pistas duplicadas em asfalto polímero e 6 viadutos estaiados.',
+          '🚛 Retirada de 5.000 carretas pesadas/dia do trânsito central.',
+          '🏭 2.800 novos empregos em armazéns logísticos e centros de distribuição.',
+          '💰 Arrecadação de ISS logístico salta +R$ 140.000/mês.',
+          '🔧 Despesa de conservação asfáltica: +R$ 45.000/mês.',
+        ],
+        impacts: {
+          jobsChange: 2800,
+          unemploymentChange: -1.0,
+          monthlyRevenueChange: 140000,
+          monthlyExpensesChange: 45000,
+          approvalChange: 12,
+          councilSupportChange: 8,
+        },
+        timestamp: Date.now(),
+        read: false,
+      };
+    }
+
+    case 'aeroporto_cargas_internacional': {
+      return {
+        id: outcomeId,
+        actionId: dispatch.actionId,
+        actionTitle: dispatch.title,
+        category: dispatch.category,
+        success: true,
+        isExceptional: roll > 60,
+        headline: 'Aeroporto Internacional de Cargas e Terminal de Passageiros Inicia Operações Aéreas',
+        officialGazetteExcerpt:
+          'A pista de 3.200 metros recebeu o primeiro pouso comercial sob aplausos. A alfândega alfandegada e o terminal climatizado colocam a cidade no mapa da aviação executiva, cargas expressas e turismo internacional.',
+        detailedReport: [
+          '✈️ Pista de padrão internacional homologada na ANAC para aeronaves cargueiras de grande porte.',
+          '📦 Terminal de cargas refrigeradas para exportação industrial e agropecuária.',
+          '🧳 Salto de +4.000 turistas e executivos por mês na rede hoteleira.',
+          '💵 Nova receita municipal de tarifas aeroportuárias e ISS: +R$ 260.000/mês.',
+          '🛫 Custeio operacional e bombeiros de aeródromo: +R$ 75.000/mês.',
+        ],
+        impacts: {
+          jobsChange: 4200,
+          unemploymentChange: -1.4,
+          touristsChange: 4000,
+          monthlyRevenueChange: 260000,
+          monthlyExpensesChange: 75000,
+          approvalChange: 14,
+          councilSupportChange: 12,
+        },
+        timestamp: Date.now(),
+        read: false,
+      };
+    }
+
+    case 'parque_tecnologico_ia_aeroespacial': {
+      return {
+        id: outcomeId,
+        actionId: dispatch.actionId,
+        actionTitle: dispatch.title,
+        category: dispatch.category,
+        success: true,
+        isExceptional: roll > 65,
+        headline: 'Mega Parque Tecnológico & Centro de Inteligência Artificial Homologado',
+        officialGazetteExcerpt:
+          'O Vale da Tecnologia Municipal foi inaugurado reunindo centros de pesquisa de supercomputação, IA e data centers. A atração de dezenas de empresas inovadoras alavanca os salários médios e a arrecadação de ISS tecnológico.',
+        detailedReport: [
+          '💻 Prédio do supercomputador e incubadoras de inteligência artificial concluídos.',
+          '🌐 Instalação das primeiras 45 startups de tecnologia e multinacionais de software.',
+          '👔 3.500 empregos de alta qualificação com salários de elite.',
+          '💎 Salto de arrecadação de ISS de serviços digitais: +R$ 210.000/mês.',
+          '⚡ Manutenção de infraestrutura de dados e telecom: +R$ 55.000/mês.',
+        ],
+        impacts: {
+          jobsChange: 3500,
+          unemploymentChange: -1.1,
+          monthlyRevenueChange: 210000,
+          monthlyExpensesChange: 55000,
+          approvalChange: 13,
+          councilSupportChange: 9,
+        },
+        timestamp: Date.now(),
+        read: false,
+      };
+    }
+
+    case 'macrodrenagem_subterranea_inundacoes': {
+      return {
+        id: outcomeId,
+        actionId: dispatch.actionId,
+        actionTitle: dispatch.title,
+        category: dispatch.category,
+        success: true,
+        isExceptional: true,
+        headline: 'Sistema de Macro-Drenagem Subterrânea Blindará a Cidade Contra Inundações por 50 Anos',
+        officialGazetteExcerpt:
+          'Com galerias de concreto subterrâneas e piscinões de 150 milhões de litros, a prefeitura concluiu a maior intervenção de combate a cheias da história municipal, eliminando os alagamentos nas áreas baixas e no centro comercial.',
+        detailedReport: [
+          '🌊 Piscinões subterrâneos com comportas automatizadas e bombas de alta vazão.',
+          '🏘️ Bairros antes sujeitos a inundações têm valorização imobiliária imediata de +18%.',
+          '🛡️ Defesa Civil celebra eliminação de áreas críticas de risco de enxurrada.',
+          '👥 Aprovação popular em alta histórica (+20%).',
+          '⚡ Manutenção do bombeamento e limpeza de galerias: +R$ 35.000/mês.',
+        ],
+        impacts: {
+          approvalChange: 20,
+          councilSupportChange: 10,
+          monthlyExpensesChange: 35000,
+        },
+        timestamp: Date.now(),
+        read: false,
+      };
+    }
+
+    case 'termeletrica_gas_natural': {
+      return {
+        id: outcomeId,
+        actionId: dispatch.actionId,
+        actionTitle: dispatch.title,
+        category: dispatch.category,
+        success: true,
+        isExceptional: roll > 70,
+        headline: 'Usina Termelétrica a Gás Natural de 250 MW Sincronizada com o SIN',
+        officialGazetteExcerpt:
+          'A usina termelétrica de ciclo combinado foi conectada à rede elétrica nacional. Além de garantir 100% de segurança energética para as indústrias municipais, a venda da energia excedente gera faturamento mensal multimilionário para os cofres públicos.',
+        detailedReport: [
+          '⚡ 250 MW de geração energética contínua em ciclo combinado.',
+          '🔌 Autossuficiência municipal e eliminação de riscos de racionamento ou apagão.',
+          '💵 Contrato de fornecimento no mercado livre de energia: +R$ 220.000/mês líquidos.',
+          '🏭 Custeio operacional e manutenção de turbinas: +R$ 80.000/mês.',
+        ],
+        impacts: {
+          energyMwChange: 250,
+          jobsChange: 800,
+          monthlyRevenueChange: 220000,
+          monthlyExpensesChange: 80000,
+          approvalChange: 11,
+          councilSupportChange: 8,
+        },
+        timestamp: Date.now(),
+        read: false,
+      };
+    }
+
+    case 'expansao_metro_linha2_tatuzao': {
+      return {
+        id: outcomeId,
+        actionId: dispatch.actionId,
+        actionTitle: dispatch.title,
+        category: dispatch.category,
+        success: true,
+        isExceptional: true,
+        headline: 'Linha 2 do Metrô Subterrâneo Concluída com Sucesso pelo Tatuzão',
+        officialGazetteExcerpt:
+          'A perfuração com escavadeira Shield (Tatuzão) foi finalizada com louvor. As 8 novas estações e 12km de túneis subterrâneos transportam mais de 140 mil pessoas diariamente com conforto, ar-condicionado e integração total com as linhas de ônibus.',
+        detailedReport: [
+          '🚇 12 km de trilhos subterrâneos e 8 novas estações modernas.',
+          '⏱️ Redução de 70% no tempo de deslocamento das periferias ao centro.',
+          '🎫 Receitas de bilhetagem e publicidade metroviária: +R$ 180.000/mês.',
+          '⚡ Custeio de tração elétrica e segurança operacional: +R$ 95.000/mês.',
+          '🌱 Retirada de 20.000 automóveis das ruas, melhorando a qualidade do ar.',
+        ],
+        impacts: {
+          jobsChange: 2400,
+          unemploymentChange: -0.9,
+          monthlyRevenueChange: 180000,
+          monthlyExpensesChange: 95000,
+          approvalChange: 16,
+          councilSupportChange: 11,
+        },
+        timestamp: Date.now(),
+        read: false,
+      };
+    }
+
     // Default fallback outcome
     default: {
       const isSuccess = roll >= 20;
@@ -1570,7 +1791,7 @@ function resolveDispatchOutcome(
           ? `Projeto "${dispatch.title}" Homologado com Sucesso`
           : `Projeto "${dispatch.title}" Teve Pendências Burocráticas`,
         officialGazetteExcerpt: isSuccess
-          ? `Após 60 segundos de tramitação rigorosa nos departamentos municipais, o projeto "${dispatch.title}" foi homologado e publicado na íntegra no Diário Oficial.`
+          ? `Após 30 segundos de tramitação oficial rigorosa nos departamentos municipais, o projeto "${dispatch.title}" foi homologado e publicado na íntegra no Diário Oficial.`
           : `O Tribunal de Contas e os órgãos reguladores apontaram inconsistências orçamentárias no processo de "${dispatch.title}". O projeto foi parcialmente suspenso para adequações.`,
         detailedReport: isSuccess
           ? [
@@ -2017,6 +2238,32 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
 
   const amortizacaoDivida = amortizacaoDividaRegular + parcelasEmprestimosPagos;
 
+  // Custeio Operacional de Obras Estruturantes & Mega Equipamentos Públicos
+  let manutencaoMegaObras = 0;
+  const completedIds = state.completedActionIds || [];
+  if (completedIds.includes('complexo_hospitalar_oncologico')) manutencaoMegaObras += 60000;
+  if (completedIds.includes('anel_viario_metropolitano')) manutencaoMegaObras += 45000;
+  if (completedIds.includes('aeroporto_cargas_internacional')) manutencaoMegaObras += 75000;
+  if (completedIds.includes('parque_tecnologico_ia_aeroespacial')) manutencaoMegaObras += 55000;
+  if (completedIds.includes('macrodrenagem_subterranea_inundacoes')) manutencaoMegaObras += 35000;
+  if (completedIds.includes('termeletrica_gas_natural')) manutencaoMegaObras += 80000;
+  if (completedIds.includes('expansao_metro_linha2_tatuzao')) manutencaoMegaObras += 95000;
+  if (completedIds.includes('metro_superficie_trilhos') || completedIds.includes('metro_linha_subterranea')) manutencaoMegaObras += 45000;
+  if (completedIds.includes('corredor_brt_onibus')) manutencaoMegaObras += 30000;
+  if (completedIds.includes('parque_solar_usina')) manutencaoMegaObras += 20000;
+  if (completedIds.includes('parque_eolico_ventos')) manutencaoMegaObras += 25000;
+  if (completedIds.includes('poco_petroleo_onshore')) manutencaoMegaObras += 35000;
+  if (completedIds.includes('plataforma_petroleo_offshore')) manutencaoMegaObras += 85000;
+
+  // Custeio de Medicamentos de Alto Custo, UPAs e Farmácia Básica
+  const medicamentosInsumosSaude = Math.round(28000 * popFactor);
+
+  // Transporte Escolar Gratuito e Merenda Nutritiva Municipal
+  const transporteEscolarMerenda = Math.round(24000 * popFactor);
+
+  // Assistência Social, CRAS, Segurança Alimentar (Bom Prato) & Famílias Vulneráveis
+  const assistenciaSocialVulneraveis = Math.round(22000 * popFactor);
+
   const totalExpenses =
     payroll +
     previdenciaServidores +
@@ -2028,6 +2275,10 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
     energiaPrediosPublicos +
     sistemasDigitaisTi +
     manutencaoUrbana +
+    manutencaoMegaObras +
+    medicamentosInsumosSaude +
+    transporteEscolarMerenda +
+    assistenciaSocialVulneraveis +
     subsidioEstatais +
     amortizacaoDivida;
 
@@ -2109,6 +2360,10 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
       combustivelManutencaoFrota,
       energiaPrediosPublicos,
       sistemasDigitaisTi,
+      manutencaoMegaObras,
+      medicamentosInsumosSaude,
+      transporteEscolarMerenda,
+      assistenciaSocialVulneraveis,
       bombeiros: bombeirosDefesa,
       saneamento: saneamentoGasto,
       transporte: transporteGasto,

@@ -275,7 +275,7 @@ export default function App() {
       } else {
         sounds.playStamp();
         setCityState(result.newState);
-        showToast('Processo protocolado! Em tramitação de 1 minuto.', 'success');
+        showToast('Processo protocolado! Em tramitação oficial de 30 segundos.', 'success');
         setActiveView('mesa');
       }
     },
@@ -392,13 +392,17 @@ export default function App() {
   // Tax Rates Adjustment
   const handleUpdateTaxRates = useCallback(
     (rates: {
+      resPobresPercent?: number;
+      resMediosPercent?: number;
+      resRicosPercent?: number;
       iptuPobresPercent?: number;
       iptuMediosPercent?: number;
       iptuRicosPercent?: number;
-      iptuPercent: number;
-      issPercent: number;
-      itbiPercent: number;
-      taxaIluminacaoCip: number;
+      iptuPercent?: number;
+      issPercent?: number;
+      itbiPercent?: number;
+      taxaIluminacaoCip?: number;
+      [key: string]: any;
     }) => {
       setCityState((prev) => {
         const result = setTaxRatesPolicy(prev, rates);
