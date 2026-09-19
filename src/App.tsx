@@ -28,6 +28,14 @@ import {
   triggerManualEmergency,
   resolveEmergencyEvent,
   processOfflineEarnings,
+  signPresidentialDecree,
+  votePresidentialLaw,
+  votePresidentialPec,
+  updateTradeCommodityVolume,
+  toggleTradeCommodity,
+  setImportTariffRate,
+  executeForexAuction,
+  signTradePartnerAgreement,
 } from './simulation/textSimulationEngine';
 import { useTextMultiplayer } from './hooks/useTextMultiplayer';
 import { sounds } from './audio/soundManager';
@@ -47,6 +55,8 @@ import { NegotiationAlertBanner } from './components/textGame/NegotiationAlertBa
 import { CityGeneralStatsView } from './components/textGame/CityGeneralStatsView';
 import { MayorAuthModal } from './components/textGame/MayorAuthModal';
 import { MayorNegotiationsView } from './components/textGame/MayorNegotiationsView';
+import { PresidentialLegislationModal } from './components/textGame/PresidentialLegislationModal';
+import { TradeBalanceModal } from './components/textGame/TradeBalanceModal';
 import { getCurrentUser, updateCurrentUserState } from './utils/userAuth';
 
 const LOCAL_STORAGE_KEY = 'prefeito_game_state_v1';
@@ -82,6 +92,8 @@ export default function App() {
   const [activeModalOutcome, setActiveModalOutcome] = useState<DispatchOutcome | null>(null);
   const [isLoansModalOpen, setIsLoansModalOpen] = useState<boolean>(false);
   const [isEmergencyModalOpen, setIsEmergencyModalOpen] = useState<boolean>(false);
+  const [isLegislationModalOpen, setIsLegislationModalOpen] = useState<boolean>(false);
+  const [isTradeModalOpen, setIsTradeModalOpen] = useState<boolean>(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       const user = getCurrentUser();
@@ -486,6 +498,70 @@ export default function App() {
     [multiplayer]
   );
 
+  // Ações Presidenciais: Decretos, Leis e PECs
+  const handleSignDecree = useCallback((decreeId: string) => {
+    setCityState((prev) => {
+      const updated = signPresidentialDecree(prev, decreeId);
+      showToast('Decreto Presidencial assinado e publicado no Diário Oficial!', 'success');
+      return updated;
+    });
+  }, []);
+
+  const handleVoteLaw = useCallback((lawId: string) => {
+    setCityState((prev) => {
+      const updated = votePresidentialLaw(prev, lawId);
+      showToast('Projeto de Lei aprovado pelo Congresso Nacional e sancionado!', 'success');
+      return updated;
+    });
+  }, []);
+
+  const handleVotePec = useCallback((pecId: string) => {
+    setCityState((prev) => {
+      const updated = votePresidentialPec(prev, pecId);
+      showToast('Histórico! Emenda Constitucional (PEC) promulgada!', 'success');
+      return updated;
+    });
+  }, []);
+
+  // Ações da Balança Comercial e Câmbio
+  const handleUpdateCommodityVolume = useCallback((commodityId: string, delta: number) => {
+    setCityState((prev) => {
+      const updated = updateTradeCommodityVolume(prev, commodityId, delta);
+      return updated;
+    });
+  }, []);
+
+  const handleToggleCommodity = useCallback((commodityId: string) => {
+    setCityState((prev) => {
+      const updated = toggleTradeCommodity(prev, commodityId);
+      return updated;
+    });
+  }, []);
+
+  const handleSetTariffRate = useCallback((ratePercent: number) => {
+    setCityState((prev) => {
+      const updated = setImportTariffRate(prev, ratePercent);
+      showToast(`Alíquota alfandegária média fixada em ${ratePercent}% pela CAMEX!`, 'info');
+      return updated;
+    });
+  }, []);
+
+  const handleExecuteForexAuction = useCallback(() => {
+    setCityState((prev) => {
+      const updated = executeForexAuction(prev);
+      showToast('Leilão Cambial executado com sucesso pelo Banco Central!', 'success');
+      return updated;
+    });
+  }, []);
+
+  const handleSignTradePartnerAgreement = useCallback((partnerId: string) => {
+    setCityState((prev) => {
+      const updated = signTradePartnerAgreement(prev, partnerId);
+      showToast('Tratado de Livre Comércio bilateral ratificado pelo Itamaraty!', 'success');
+      return updated;
+    });
+  }, []);
+
   const toggleMute = () => {
     const next = sounds.toggleMute();
     setIsMuted(next);
@@ -511,7 +587,7 @@ export default function App() {
         }}
       />
 
-      {/* Barra de Navegação Superior e Métricas do Município */}
+      {/* Barra de Navegação Superior e Métricas do Município / Presidência */}
       <MayorTopBar
         state={cityState}
         activeView={activeView}
@@ -523,6 +599,8 @@ export default function App() {
         onOpenEmergencyModal={() => setIsEmergencyModalOpen(true)}
         onTriggerRandomEmergency={handleTriggerManualEmergency}
         onOpenLoansModal={() => setIsLoansModalOpen(true)}
+        onOpenLegislationModal={() => setIsLegislationModalOpen(true)}
+        onOpenTradeModal={() => setIsTradeModalOpen(true)}
         isSavingOnline={isSavingOnline}
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
         roomId={multiplayer.roomId}
@@ -733,6 +811,28 @@ export default function App() {
         currentState={cityState}
         onSelectProfile={handleSelectMayorProfile}
         initialTab="login"
+      />
+
+      {/* Modal de Legislação Soberana: Decretos, Leis e PECs */}
+      <PresidentialLegislationModal
+        isOpen={isLegislationModalOpen}
+        onClose={() => setIsLegislationModalOpen(false)}
+        state={cityState}
+        onSignDecree={handleSignDecree}
+        onVoteLaw={handleVoteLaw}
+        onVotePec={handleVotePec}
+      />
+
+      {/* Modal da Balança Comercial & Comércio Exterior */}
+      <TradeBalanceModal
+        isOpen={isTradeModalOpen}
+        onClose={() => setIsTradeModalOpen(false)}
+        state={cityState}
+        onUpdateVolume={handleUpdateCommodityVolume}
+        onToggleCommodity={handleToggleCommodity}
+        onSetTariffRate={handleSetTariffRate}
+        onExecuteForexAuction={handleExecuteForexAuction}
+        onSignPartnerAgreement={handleSignTradePartnerAgreement}
       />
     </div>
   );

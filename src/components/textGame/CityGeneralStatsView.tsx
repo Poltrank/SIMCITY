@@ -54,7 +54,7 @@ export const CityGeneralStatsView: React.FC<CityGeneralStatsViewProps> = ({
   onUpdateState,
   onShowToast,
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'geral' | 'demografia' | 'empresas' | 'recursos'>('geral');
+  const [activeSubTab, setActiveSubTab] = useState<'geral' | 'demografia' | 'empresas' | 'recursos' | 'soberano'>('geral');
   const [housingBatch, setHousingBatch] = useState<number>(500);
   const [gasKmBatch, setGasKmBatch] = useState<number>(10);
 
@@ -287,6 +287,24 @@ export const CityGeneralStatsView: React.FC<CityGeneralStatsViewProps> = ({
                 Petróleo Ativo
               </span>
             )}
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveSubTab('soberano');
+              sounds.playClick();
+            }}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2 ${
+              activeSubTab === 'soberano'
+                ? 'bg-amber-500 text-slate-950 shadow-md font-black'
+                : 'bg-slate-800/60 text-slate-300 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <Building className="w-4 h-4 text-amber-400" />
+            República & Balança Soberana
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-emerald-500 text-slate-950">
+              {cityState.sovereignRating || 'A'}
+            </span>
           </button>
         </div>
       </div>
@@ -1118,6 +1136,178 @@ export const CityGeneralStatsView: React.FC<CityGeneralStatsViewProps> = ({
                 <div className="mt-3 text-[11px] font-semibold text-yellow-300">
                   Estoque no cofre: {natStrategy.goldReserveKg || 0} kg de ouro puro
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ABA 5: REPÚBLICA, BALANÇA COMERCIAL & ECONOMIA SOBERANA */}
+      {activeSubTab === 'soberano' && (
+        <div className="space-y-6">
+          {/* Grid Superior de Métricas Soberanas */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* 1. Dívida Soberana & Rating */}
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  Dívida Soberana
+                </span>
+                <span className="px-2 py-0.5 rounded text-xs font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  Rating {cityState.sovereignRating || 'A'}
+                </span>
+              </div>
+              <div className="mt-2">
+                <span className="text-xl font-black text-white">
+                  R$ {(cityState.sovereignDebt || 18500000).toLocaleString()}
+                </span>
+              </div>
+              <div className="mt-1 text-[11px] text-amber-300">
+                Taxa Selic: {cityState.interestRateSelic || 10.5}% a.a.
+              </div>
+            </div>
+
+            {/* 2. Balança Comercial Líquida */}
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  Balança Comercial
+                </span>
+                <span
+                  className={`px-2 py-0.5 rounded text-xs font-black ${
+                    (cityState.tradeBalance?.netTradeBalanceUsd || 0) >= 0
+                      ? 'bg-emerald-500/20 text-emerald-300'
+                      : 'bg-rose-500/20 text-rose-300'
+                  }`}
+                >
+                  {(cityState.tradeBalance?.netTradeBalanceUsd || 0) >= 0 ? 'Superávit' : 'Déficit'}
+                </span>
+              </div>
+              <div className="mt-2">
+                <span
+                  className={`text-xl font-black ${
+                    (cityState.tradeBalance?.netTradeBalanceUsd || 0) >= 0
+                      ? 'text-emerald-400'
+                      : 'text-rose-400'
+                  }`}
+                >
+                  US$ {(cityState.tradeBalance?.netTradeBalanceUsd || 0).toLocaleString()}
+                </span>
+              </div>
+              <div className="mt-1 text-[11px] text-slate-400">
+                Saldo em R$: R$ {(cityState.tradeBalance?.netTradeBalanceBrl || 0).toLocaleString()}
+              </div>
+            </div>
+
+            {/* 3. Câmbio Dólar & Reservas BACEN */}
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  Câmbio Dólar (Ptax)
+                </span>
+                <span className="text-xs font-mono font-bold text-sky-400">
+                  R$ {(cityState.tradeBalance?.dollarExchangeRate || 5.42).toFixed(2)}
+                </span>
+              </div>
+              <div className="mt-2">
+                <span className="text-xl font-black text-amber-300">
+                  US$ {(cityState.tradeBalance?.forexReservesUsd || 2850000).toLocaleString()}
+                </span>
+              </div>
+              <div className="mt-1 text-[11px] text-slate-400">
+                Reservas Cambiais Internacionais
+              </div>
+            </div>
+
+            {/* 4. Apoio Parlamentar */}
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  Congresso Nacional
+                </span>
+                <span className="text-xs font-bold text-amber-400">
+                  {cityState.politicalCapital || 100} PC
+                </span>
+              </div>
+              <div className="mt-2">
+                <span className="text-xl font-black text-indigo-300">
+                  {cityState.congressSupport || 58}% da Câmara
+                </span>
+              </div>
+              <div className="mt-1 text-[11px] text-slate-400">
+                Base Governista & Articulação
+              </div>
+            </div>
+          </div>
+
+          {/* Custeio da Estrutura da República */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm">
+            <h4 className="font-bold text-sm uppercase tracking-wider text-amber-400 mb-4 flex items-center gap-2">
+              <Building className="w-4 h-4" />
+              Gastos Soberanos Obrigatórios da República
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800">
+                <span className="text-xs text-slate-400 block">Déficit da Previdência (INSS)</span>
+                <span className="text-lg font-black text-rose-400 mt-1 block">
+                  -R$ {(cityState.sovereignExpenses?.inssSocialSecurityDeficit || 42000).toLocaleString()}/mês
+                </span>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Pagamento obrigatório a aposentados e pensionistas federais. Redutível via PEC da Previdência.
+                </p>
+              </div>
+
+              <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800">
+                <span className="text-xs text-slate-400 block">Forças Armadas & Defesa Nacional</span>
+                <span className="text-lg font-black text-rose-400 mt-1 block">
+                  -R$ {(cityState.sovereignExpenses?.armedForcesDefense || 35000).toLocaleString()}/mês
+                </span>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Exército, Marinha e Aeronáutica: proteção de fronteiras, Amazônia e águas territoriais.
+                </p>
+              </div>
+
+              <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800">
+                <span className="text-xs text-slate-400 block">Esplanada dos Ministérios & Diplomacia</span>
+                <span className="text-lg font-black text-rose-400 mt-1 block">
+                  -R$ {(cityState.sovereignExpenses?.ministriesEsplanada || 28000).toLocaleString()}/mês
+                </span>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Custeio do Itamaraty, diplomacia no exterior e funcionalismo dos ministérios federais.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Balanço de Comércio Exterior & Ativos Soberanos */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm">
+            <h4 className="font-bold text-sm uppercase tracking-wider text-emerald-400 mb-4 flex items-center gap-2">
+              <TrendingUp className="w-4 h-4" />
+              Pauta Exportadora e Importadora do País
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 space-y-2">
+                <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider block">
+                  Exportações Consolidadas
+                </span>
+                <div className="text-2xl font-black text-white">
+                  US$ {(cityState.tradeBalance?.totalExportUsd || 0).toLocaleString()}
+                </div>
+                <p className="text-xs text-slate-400">
+                  Principais itens: Soja e Agro (US$ {(cityState.tradeBalance?.commodities?.find(c => c.id === 'soja_agro')?.exportVolumeTons || 0).toLocaleString()} t), Minério de Ferro e Petróleo Bruto.
+                </p>
+              </div>
+
+              <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 space-y-2">
+                <span className="text-xs font-bold text-rose-400 uppercase tracking-wider block">
+                  Importações & Alíquota CAMEX
+                </span>
+                <div className="text-2xl font-black text-white">
+                  US$ {(cityState.tradeBalance?.totalImportUsd || 0).toLocaleString()}
+                </div>
+                <p className="text-xs text-slate-400">
+                  Tarifa Média de Importação fixada em {cityState.tradeBalance?.importTariffAveragePercent || 12}%. Arrecadação de tributos alfandegários enviada ao Tesouro Nacional.
+                </p>
               </div>
             </div>
           </div>

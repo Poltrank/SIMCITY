@@ -465,15 +465,35 @@ export const FinanceDashboardView: React.FC<FinanceDashboardViewProps> = ({
                 <span className="font-bold">+R$ {rev.lucroEstatais.toLocaleString()}</span>
               </div>
             )}
+            {/* Receitas Soberanas da Presidência */}
+            {((cityState.tradeBalance?.netTradeBalanceBrl || 0) > 0) && (
+              <div className="flex justify-between py-1 border-b border-slate-800/50 text-emerald-300">
+                <span className="font-medium">🚢 Superávit da Balança Comercial (Divisas Exportação)</span>
+                <span className="font-bold">+R$ {Math.round((cityState.tradeBalance?.netTradeBalanceBrl || 0) * 0.15).toLocaleString()}</span>
+              </div>
+            )}
+            {((cityState.tradeBalance?.totalImportUsd || 0) > 0) && (
+              <div className="flex justify-between py-1 border-b border-slate-800/50 text-indigo-300">
+                <span className="font-medium">🏷️ Imposto de Importação Federal (Tarifa CAMEX)</span>
+                <span className="font-bold">
+                  +R${' '}
+                  {Math.round(
+                    (cityState.tradeBalance?.totalImportUsd || 0) *
+                      ((cityState.tradeBalance?.importTariffAveragePercent || 12) / 100) *
+                      (cityState.tradeBalance?.dollarExchangeRate || 5.42)
+                  ).toLocaleString()}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* DESPESAS MUNICIPAIS */}
+        {/* DESPESAS MUNICIPAIS & FEDERAIS */}
         <div className="bg-slate-900 p-5 rounded-xl border border-slate-800">
           <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
             <h3 className="font-bold text-sm uppercase tracking-wider text-rose-400 flex items-center gap-1.5">
               <TrendingDown className="w-4 h-4" />
-              Despesas & Custeio Público Municipal
+              Despesas Públicas & Custeio da República
             </h3>
             <span className="font-black text-rose-400 tabular-nums text-base">
               -R$ {cityState.monthlyExpenses.toLocaleString()}
@@ -573,6 +593,31 @@ export const FinanceDashboardView: React.FC<FinanceDashboardViewProps> = ({
                 </span>
               </div>
             )}
+            {/* Custeio Soberano Federal da República */}
+            <div className="flex justify-between py-1 border-b border-slate-800/50 text-rose-300">
+              <span className="text-slate-400">🏛️ Juros Selic da Dívida Soberana ({cityState.interestRateSelic || 10.5}%)</span>
+              <span className="font-semibold text-rose-300">
+                -R$ {Math.round(((cityState.sovereignDebt || 18500000) * ((cityState.interestRateSelic || 10.5) / 100)) / 12).toLocaleString()}
+              </span>
+            </div>
+            <div className="flex justify-between py-1 border-b border-slate-800/50 text-rose-300">
+              <span className="text-slate-400">🛡️ Déficit Previdenciário Nacional (INSS)</span>
+              <span className="font-semibold text-rose-300">
+                -R$ {(cityState.sovereignExpenses?.inssSocialSecurityDeficit ?? 42000).toLocaleString()}
+              </span>
+            </div>
+            <div className="flex justify-between py-1 border-b border-slate-800/50 text-rose-300">
+              <span className="text-slate-400">🎖️ Forças Armadas & Defesa Nacional</span>
+              <span className="font-semibold text-rose-300">
+                -R$ {(cityState.sovereignExpenses?.armedForcesDefense ?? 35000).toLocaleString()}
+              </span>
+            </div>
+            <div className="flex justify-between py-1 border-b border-slate-800/50 text-rose-300">
+              <span className="text-slate-400">🏢 Esplanada dos Ministérios & Diplomacia</span>
+              <span className="font-semibold text-rose-300">
+                -R$ {(cityState.sovereignExpenses?.ministriesEsplanada ?? 28000).toLocaleString()}
+              </span>
+            </div>
           </div>
         </div>
       </div>

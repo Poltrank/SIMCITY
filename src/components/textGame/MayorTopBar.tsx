@@ -27,6 +27,10 @@ import {
   User,
   Handshake,
   Activity,
+  Scroll,
+  Ship,
+  Scale,
+  Globe,
 } from 'lucide-react';
 import { PrefeitoCityState } from '../../types/textGame';
 import { sounds } from '../../audio/soundManager';
@@ -42,6 +46,8 @@ interface MayorTopBarProps {
   onOpenEmergencyModal?: () => void;
   onTriggerRandomEmergency?: () => void;
   onOpenLoansModal?: () => void;
+  onOpenLegislationModal?: () => void;
+  onOpenTradeModal?: () => void;
   isSavingOnline?: boolean;
   onOpenAuthModal?: () => void;
   roomId?: string;
@@ -62,6 +68,8 @@ export const MayorTopBar: React.FC<MayorTopBarProps> = ({
   onOpenEmergencyModal,
   onTriggerRandomEmergency,
   onOpenLoansModal,
+  onOpenLegislationModal,
+  onOpenTradeModal,
   isSavingOnline,
   onOpenAuthModal,
   roomId = 'BRASIL1',
@@ -104,15 +112,15 @@ export const MayorTopBar: React.FC<MayorTopBarProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="font-bold text-base md:text-lg tracking-tight text-white flex items-center gap-1.5">
-                {state.cityName}
+                {state.countryName || 'República Federativa do Brasil'}
               </h1>
               <span
                 className={`text-[11px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider ${getRatingBadge(
                   state.fiscalRating
                 )}`}
-                title="Capacidade de Pagamento (CAPAG) da Secretaria do Tesouro Nacional"
+                title="Nota de Crédito Soberano Internacional e Capacidade de Pagamento"
               >
-                CAPAG {state.fiscalRating}
+                Rating {state.sovereignRating || state.fiscalRating}
               </span>
             </div>
             <p
@@ -123,19 +131,21 @@ export const MayorTopBar: React.FC<MayorTopBarProps> = ({
                 }
               }}
               className="text-xs text-slate-400 flex items-center gap-1 cursor-pointer hover:text-amber-300 transition-colors"
-              title="Clique para trocar Prefeito ou Partido"
+              title="Clique para trocar Mandato Presidencial"
             >
               <span className="text-amber-300 font-medium hover:underline flex items-center gap-1">
                 <User className="w-3 h-3 text-amber-400" />
-                {state.mayorName}
+                {state.presidentName || state.mayorName.replace('Prefeito', 'Presidente')}
               </span>
               <span className="text-slate-600">•</span>
-              <span className="text-slate-400 truncate max-w-[180px] md:max-w-none">{state.party}</span>
+              <span className="text-slate-400 truncate max-w-[180px] md:max-w-none">
+                Palácio do Planalto • {state.party}
+              </span>
             </p>
           </div>
         </div>
 
-        {/* Data & Mandato */}
+        {/* Data & Mandato Presidencial */}
         <div className="flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700/60 text-xs">
           <Calendar className="w-4 h-4 text-sky-400" />
           <div>
@@ -143,16 +153,16 @@ export const MayorTopBar: React.FC<MayorTopBarProps> = ({
               {String(state.day || 15).padStart(2, '0')} de {state.monthName || 'Setembro'} de {state.year || 2026}
             </span>
             <span className="text-[11px] text-amber-400/90 font-medium block">
-              Dia {state.day ? Math.max(1, ((state.year - 2026) * 365 + (state.month - 9) * 30 + (state.day - 15) + 1)) : 1} • 24h / dia
+              Mandato Soberano • 30s / Ciclo
             </span>
           </div>
         </div>
 
-        {/* Tesouro Municipal & Superávit */}
+        {/* Tesouro Nacional & Superávit */}
         <div className="flex items-center gap-4 bg-slate-950/70 px-3.5 py-1.5 rounded-lg border border-slate-800">
           <div>
             <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
-              Tesouro em Caixa
+              Tesouro Nacional
             </span>
             <span className="text-base md:text-lg font-black text-emerald-400 tabular-nums">
               R$ {state.treasury.toLocaleString()}
@@ -167,11 +177,11 @@ export const MayorTopBar: React.FC<MayorTopBarProps> = ({
                 state.netMonthly >= 0 ? 'text-emerald-400' : 'text-rose-400'
               }`}
             >
-              {state.netMonthly >= 0 ? '+' : ''}R$ {state.netMonthly.toLocaleString()} / 2min
+              {state.netMonthly >= 0 ? '+' : ''}R$ {state.netMonthly.toLocaleString()} / ciclo
             </span>
           </div>
 
-          {/* Badge do Ciclo de 2 Minutos */}
+          {/* Badge do Ciclo de 30 Segundos */}
           {state.economicCycle && (
             <div
               className="border-l border-slate-800 pl-3 flex items-center gap-2 cursor-pointer"
@@ -179,11 +189,11 @@ export const MayorTopBar: React.FC<MayorTopBarProps> = ({
                 setActiveView('financas');
                 sounds.playClick();
               }}
-              title="Ciclo fiscal de arrecadação e pagamentos da folha (ocorre a cada 2 minutos)"
+              title="Ciclo fiscal de arrecadação nacional e pagamentos soberanos (a cada 30 segundos)"
             >
               <Clock className="w-3.5 h-3.5 text-amber-400 animate-spin" style={{ animationDuration: '8s' }} />
               <div>
-                <span className="text-[9px] uppercase font-bold text-slate-500 block">Ciclo Fiscal</span>
+                <span className="text-[9px] uppercase font-bold text-slate-500 block">Ciclo Soberano</span>
                 <span className="text-xs font-mono font-bold text-amber-300">
                   {Math.floor(state.economicCycle.secondsRemaining / 60)}:
                   {String(state.economicCycle.secondsRemaining % 60).padStart(2, '0')}
@@ -239,12 +249,31 @@ export const MayorTopBar: React.FC<MayorTopBarProps> = ({
               <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
               Aprovação: <strong className="text-emerald-400 font-semibold">{state.approvalRating}%</strong>
             </span>
-            <span className="hidden md:flex items-center gap-1" title="Apoio na Câmara de Vereadores">
-              <Award className="w-3.5 h-3.5 text-indigo-400" />
-              Câmara:{' '}
-              <strong className={state.councilSupport >= 50 ? 'text-indigo-300' : 'text-rose-400'}>
+            <span className="hidden md:flex items-center gap-1" title="Apoio Político no Congresso Nacional">
+              <Scale className="w-3.5 h-3.5 text-indigo-400" />
+              Congresso:{' '}
+              <strong className={state.councilSupport >= 60 ? 'text-emerald-400' : state.councilSupport >= 50 ? 'text-sky-300' : 'text-rose-400'}>
                 {state.councilSupport}%
               </strong>
+            </span>
+
+            {/* Balança Comercial Soberana */}
+            <span
+              onClick={() => {
+                sounds.playClick();
+                onOpenTradeModal?.();
+              }}
+              className="hidden lg:flex items-center gap-1.5 px-2 py-0.5 rounded border bg-sky-950/70 border-sky-600/50 text-sky-300 text-[11px] cursor-pointer hover:bg-sky-900/80 transition-all shadow-sm"
+              title="Clique para abrir a Balança Comercial e Gestão Cambial"
+            >
+              <Ship className="w-3.5 h-3.5 text-sky-400" />
+              <span>Balança:</span>
+              <strong className={((state.tradeBalance?.netTradeBalanceUsd || 0) >= 0) ? 'text-emerald-400' : 'text-rose-400'}>
+                {((state.tradeBalance?.netTradeBalanceUsd || 0) >= 0) ? '+' : ''}US$ {Math.round((state.tradeBalance?.netTradeBalanceUsd || 0) / 1000).toLocaleString()}k
+              </strong>
+              <span className="text-[10px] text-amber-300 font-mono">
+                (R$ {(state.tradeBalance?.dollarExchangeRate || 5.42).toFixed(2)})
+              </span>
             </span>
           </div>
 
@@ -331,6 +360,40 @@ export const MayorTopBar: React.FC<MayorTopBarProps> = ({
                 {pendingDispatchesCount} em andamento (30s)
               </span>
             )}
+          </button>
+
+          {/* Botão de Legislação: Decretos, Leis e PECs */}
+          <button
+            onClick={() => {
+              sounds.playClick();
+              onOpenLegislationModal?.();
+            }}
+            className="px-3 py-2 rounded-md text-xs md:text-sm font-bold flex items-center gap-2 transition-all whitespace-nowrap text-purple-300 bg-purple-950/60 hover:bg-purple-900/80 border border-purple-700/60 shadow-sm"
+            title="Assinar Decretos Presidenciais, votar Projetos de Lei e promulgar PECs"
+          >
+            <Scroll className="w-4 h-4 text-purple-400" />
+            Leis & PECs
+            <span className="px-1.5 py-0.2 text-[10px] font-black rounded-full bg-purple-500 text-white">
+              {(state.signedDecreeIds || []).length + (state.passedLawIds || []).length + (state.passedPecIds || []).length}
+            </span>
+          </button>
+
+          {/* Botão da Balança Comercial & Exportações/Importações */}
+          <button
+            onClick={() => {
+              sounds.playClick();
+              onOpenTradeModal?.();
+            }}
+            className="px-3 py-2 rounded-md text-xs md:text-sm font-bold flex items-center gap-2 transition-all whitespace-nowrap text-sky-300 bg-sky-950/60 hover:bg-sky-900/80 border border-sky-700/60 shadow-sm"
+            title="Gerenciar pauta de exportação, importação e reservas cambiais da República"
+          >
+            <Ship className="w-4 h-4 text-sky-400" />
+            Balança Comercial
+            <span className={`px-1.5 py-0.2 text-[10px] font-black rounded-full ${
+              ((state.tradeBalance?.netTradeBalanceUsd || 0) >= 0) ? 'bg-emerald-500 text-slate-950' : 'bg-rose-500 text-white'
+            }`}>
+              {((state.tradeBalance?.netTradeBalanceUsd || 0) >= 0) ? '+US$' : '-US$'}
+            </span>
           </button>
 
           <button

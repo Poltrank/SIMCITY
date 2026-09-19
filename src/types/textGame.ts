@@ -92,7 +92,14 @@ export interface DispatchOutcome {
 export interface GazetteArticle {
   id: string;
   title: string;
-  source: 'Diário Oficial' | 'Gazeta Municipal' | 'Folha Metropolitana' | 'Tribunal de Contas';
+  source:
+    | 'Diário Oficial'
+    | 'Gazeta Municipal'
+    | 'Folha Metropolitana'
+    | 'Tribunal de Contas'
+    | 'Diário Oficial da União (DOU)'
+    | 'Banco Central do Brasil'
+    | 'Ministério das Relações Exteriores (Itamaraty)';
   type: 'decreto' | 'noticia' | 'alerta' | 'crise' | 'celebracao';
   dateStr: string;
   body: string;
@@ -374,9 +381,32 @@ export interface PrefeitoCityState {
   // Empréstimos Intermunicipais Concedidos ou Tomados
   intermunicipalLoans: IntermunicipalLoan[];
 
-  // Ocorrência Emergencial Ativa na Mesa do Prefeito
+  // Ocorrência Emergencial Ativa na Mesa do Prefeito / Presidente
   activeEmergencyEvent?: MunicipalEmergencyEvent | null;
   resolvedEmergenciesCount?: number;
+
+  // =========================================================================
+  // EXTENSÃO PRESIDENCIAL: SOBERANIA, COMÉRCIO EXTERIOR & LEGISLAÇÃO FEDERAL
+  // =========================================================================
+  countryName?: string; // e.g. "República Federativa do Brasil" ou Pátria Soberana
+  presidentName?: string; // e.g. "Presidente Cássio"
+  isPresidentialMode?: boolean; // Sempre ativo na gestão soberana
+  sovereignRating?: 'AAA' | 'AA' | 'A' | 'BBB' | 'BB' | 'B' | 'CCC' | 'D'; // Nota de Crédito Soberano Internacional
+  sovereignDebt?: number; // Dívida Pública Soberana em Títulos Públicos Federais (Tesouro Direto)
+  sovereignDebtInterestRateSelic?: number; // Taxa Básica de Juros da Economia (ex: 10.50% a.a.)
+  sovereignDebtInterestMonthly?: number; // Custo mensal do serviço da dívida soberana
+  inssDeficitMonthly?: number; // Rombo/Déficit mensal da Previdência Social Nacional (INSS)
+  armedForcesExpenseMonthly?: number; // Custo de Defesa Nacional, Forças Armadas e Patrulha do Pré-Sal
+  esplanadaCostMonthly?: number; // Custeio da Máquina Federal, Ministérios e Polícia Federal
+  
+  // Balança Comercial (Comércio Exterior: Exportações & Importações)
+  tradeBalance?: NationalTradeBalanceState;
+
+  // Pauta Legislativa Presidencial: Decretos, Leis e PECs
+  legislativeAgenda?: PresidentialLegislationItem[];
+  signedDecreeIds?: string[];
+  passedLawIds?: string[];
+  passedPecIds?: string[];
 }
 
 export interface IntermunicipalLoan {
@@ -566,3 +596,93 @@ export interface CorporateOffer {
   status: 'pending' | 'accepted' | 'declined';
   receivedDateStr: string;
 }
+
+// =========================================================================
+// LEGISLAÇÃO FEDERAL: DECRETOS PRESIDENCIAIS, LEIS DO CONGRESSO & PECs
+// =========================================================================
+export type LegislativeInstrumentType = 'decreto' | 'lei' | 'pec';
+
+export interface PresidentialLegislationItem {
+  id: string;
+  type: LegislativeInstrumentType;
+  numberStr: string; // Ex: "Decreto nº 11.240/2026", "Lei nº 14.890/2026", "PEC nº 45/2026"
+  title: string;
+  theme: 'economia' | 'comercio_exterior' | 'energia_mineracao' | 'trabalho_previdencia' | 'infraestrutura_defesa' | 'tributaria';
+  badge: string;
+  description: string;
+  detailedJustification: string;
+  author: 'Poder Executivo (Presidente)' | 'Comissão do Congresso Nacional' | 'Liderança Partidária';
+
+  // Requisitos & Votação
+  requiredQuorum: 'caneta_presidencial' | 'maioria_simples' | 'tres_quintos'; // Decreto = direto (100%), Lei = Maioria Simples (>50%), PEC = 3/5 Quórum Qualificado (>=60%)
+  politicalCapitalCost: number; // Custo de articulação / prestígio em R$
+  minTreasury?: number;
+  minCongressSupport?: number; // % de apoio no Congresso exigido (ex: 50% ou 60%)
+
+  // Status
+  status: 'disponivel' | 'em_votacao' | 'aprovada' | 'rejeitada';
+  votedDateStr?: string;
+
+  // Efeitos Econômicos & Estruturais
+  impacts: {
+    monthlyRevenueBonus?: number;
+    monthlyExpenseReduction?: number;
+    exportBonusPercent?: number; // % aumento nas exportações
+    importCostDiscountPercent?: number; // % redução nos custos de importação
+    approvalChange?: number; // Popularidade
+    congressSupportChange?: number; // Apoio no Congresso
+    sovereignRatingUpgrade?: boolean;
+    selicInterestCutBps?: number; // Redução na Taxa Selic (ex: -100 bps = -1%)
+    inssDeficitReduction?: number; // Redução no rombo da previdência
+    jobsCreated?: number;
+    customNote?: string;
+  };
+}
+
+// =========================================================================
+// COMÉRCIO EXTERIOR: BALANÇA COMERCIAL, COMMODITIES & PARCEIROS GLOBAIS
+// =========================================================================
+export interface TradeCommodity {
+  id: string;
+  type: 'export' | 'import';
+  name: string;
+  category: 'agronegocio' | 'petroleo_combustivel' | 'mineracao' | 'tecnologia' | 'industria_aeroespacial' | 'farmaceutica';
+  icon: string;
+  unit: string; // 'milhares ton/mês', 'barris/dia', 'toneladas/mês', 'aeronaves/ano', 'lotes/mês'
+  baseVolumePerCycle: number; // Volume base
+  currentVolume: number; // Volume em negociação ativa
+  internationalPriceUsd: number; // Cotação mundial em US$
+  domesticCostBrl: number; // Custo de produção interna ou frete em R$
+  tariffApplicablePercent: number; // Tarifa / Alíquota alfandegária (%)
+  active: boolean;
+  marketDemandStatus: 'Em Alta' | 'Estável' | 'Explosiva' | 'Queda';
+  strategicImpact: string;
+  domesticCriticalNeed?: string; // Para importações vitais (ex: Fertilizantes, Chips, Remédios)
+}
+
+export interface TradeAgreementPartner {
+  id: string;
+  countryName: string;
+  flag: string;
+  bloc: 'Ásia & China' | 'Estados Unidos & Nafta' | 'União Europeia' | 'Mercosul & Vizinhos' | 'Oriente Médio';
+  tradeStatus: 'padrao' | 'livre_comercio' | 'tarifas_altas' | 'embargo';
+  bilateralTradeVolumeUsd: number;
+  tariffDiscountPercent: number;
+  exportDemandBoostPercent: number;
+  description: string;
+}
+
+export interface NationalTradeBalanceState {
+  totalExportUsd: number;
+  totalImportUsd: number;
+  netTradeBalanceUsd: number; // Superávit (+) ou Déficit (-) em US$
+  netTradeBalanceBrl: number; // Saldo líquido convertido para o Tesouro Nacional em R$
+  dollarExchangeRate: number; // Cotação do Dólar (ex: R$ 5.40)
+  forexReservesUsd: number; // Reservas Internacionais do Banco Central em US$
+  importTariffAveragePercent: number; // Alíquota média de importação (0% a 50%)
+  exportCreditSubsidyActive: boolean; // Proex / Fomento a exportações ativado
+  commodities: TradeCommodity[];
+  partners: TradeAgreementPartner[];
+  lastForexAuctionTimestamp?: number;
+}
+

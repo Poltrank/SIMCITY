@@ -10,8 +10,13 @@ import {
   OilDestinationPolicy,
   GoldDestinationPolicy,
   NaturalResourcesStrategy,
+  PresidentialLegislationItem,
+  NationalTradeBalanceState,
+  TradeCommodity,
 } from '../types/textGame';
 import { MUNICIPAL_ACTIONS } from '../data/municipalActions';
+import { INITIAL_PRESIDENTIAL_LEGISLATION } from '../data/presidentialLegislation';
+import { createInitialTradeBalanceState } from '../data/tradeCommodities';
 
 export const MONTH_NAMES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -640,6 +645,23 @@ export function createInitialPrefeitoState(setup?: InitialMayorSetup): PrefeitoC
     intermunicipalLoans: [],
     activeEmergencyEvent: null,
     resolvedEmergenciesCount: 0,
+
+    // Extensão Presidencial: Soberania, Comércio Exterior & Legislação Federal
+    countryName: 'República Federativa do Brasil',
+    presidentName: chosenMayorName.replace('Prefeito', 'Presidente'),
+    isPresidentialMode: true,
+    sovereignRating: 'A',
+    sovereignDebt: 4800000,
+    sovereignDebtInterestRateSelic: 10.50,
+    sovereignDebtInterestMonthly: 42000,
+    inssDeficitMonthly: 95000,
+    armedForcesExpenseMonthly: 45000,
+    esplanadaCostMonthly: 35000,
+    tradeBalance: createInitialTradeBalanceState(),
+    legislativeAgenda: INITIAL_PRESIDENTIAL_LEGISLATION,
+    signedDecreeIds: [],
+    passedLawIds: [],
+    passedPecIds: [],
   };
 }
 
@@ -2156,6 +2178,72 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
     }
   });
 
+  // =========================================================================
+  // EXTENSÃO PRESIDENCIAL: LEGISLAÇÃO FEDERAL, COMÉRCIO EXTERIOR & DÍVIDA SOBERANA
+  // =========================================================================
+  let legislationRevBonus = 0;
+  let legislationExpCut = 0;
+  let legislationExportBonus = 0;
+  let legislationImportDiscount = 0;
+  let selicCutBpsTotal = 0;
+  let inssDeficitReductionTotal = 0;
+
+  const signedDecreeIds = state.signedDecreeIds || [];
+  const passedLawIds = state.passedLawIds || [];
+  const passedPecIds = state.passedPecIds || [];
+  const allActiveLawIds = new Set([...signedDecreeIds, ...passedLawIds, ...passedPecIds]);
+
+  (state.legislativeAgenda || []).forEach((leg) => {
+    if (leg.status === 'aprovada' || allActiveLawIds.has(leg.id)) {
+      if (leg.impacts.monthlyRevenueBonus) legislationRevBonus += leg.impacts.monthlyRevenueBonus;
+      if (leg.impacts.monthlyExpenseReduction) legislationExpCut += leg.impacts.monthlyExpenseReduction;
+      if (leg.impacts.exportBonusPercent) legislationExportBonus += leg.impacts.exportBonusPercent;
+      if (leg.impacts.importCostDiscountPercent) legislationImportDiscount += leg.impacts.importCostDiscountPercent;
+      if (leg.impacts.selicInterestCutBps) selicCutBpsTotal += leg.impacts.selicInterestCutBps;
+      if (leg.impacts.inssDeficitReduction) inssDeficitReductionTotal += leg.impacts.inssDeficitReduction;
+    }
+  });
+
+  // Balança Comercial & Comércio Exterior
+  const currentTrade = state.tradeBalance || createInitialTradeBalanceState();
+  const dollarRate = currentTrade.dollarExchangeRate || 5.40;
+  let totalExportUsd = 0;
+  let totalImportUsd = 0;
+  let importTariffsCollectedBrl = 0;
+
+  (currentTrade.commodities || []).forEach((c) => {
+    if (c.active) {
+      if (c.type === 'export') {
+        const bonusMult = 1 + (legislationExportBonus / 100);
+        const exportUsd = ((c.currentVolume * c.internationalPriceUsd) / 1000) * bonusMult;
+        totalExportUsd += exportUsd;
+      } else {
+        const discountMult = Math.max(0.4, 1 - (legislationImportDiscount / 100));
+        const importUsd = ((c.currentVolume * c.internationalPriceUsd) / 1000) * discountMult;
+        totalImportUsd += importUsd;
+        const tariffRate = (c.tariffApplicablePercent || currentTrade.importTariffAveragePercent || 10) / 100;
+        importTariffsCollectedBrl += Math.round(importUsd * dollarRate * tariffRate * 0.12);
+      }
+    }
+  });
+
+  const netTradeBalanceUsd = Math.round(totalExportUsd - totalImportUsd);
+  const netTradeBalanceBrl = Math.round(netTradeBalanceUsd * dollarRate);
+
+  // Lucro soberano retido pelo Tesouro das operações de exportação / superávit comercial + tarifas aduaneiras
+  const sovereignTradeDividendMonthly = Math.max(0, Math.round(netTradeBalanceBrl * 0.15)) + importTariffsCollectedBrl;
+
+  // Custo de insumos importados críticos absorvidos pela economia pública (ex: remédios do SUS, fertilizantes)
+  const criticalImportsCostMonthly = Math.max(25000, Math.round(totalImportUsd * dollarRate * 0.035));
+
+  // Custos Soberanos Nacionais
+  const baseSelic = Math.max(4.5, (state.sovereignDebtInterestRateSelic || 10.50) - (selicCutBpsTotal / 100));
+  const sovereignDebtVal = state.sovereignDebt || Math.max(4000000, state.debt * 4);
+  const sovereignDebtInterestMonthly = Math.round((sovereignDebtVal * (baseSelic / 100)) / 12);
+  const inssDeficitMonthly = Math.max(15000, (state.inssDeficitMonthly || 95000) - inssDeficitReductionTotal);
+  const armedForcesExpenseMonthly = state.armedForcesExpenseMonthly || 45000;
+  const esplanadaCostMonthly = Math.max(12000, (state.esplanadaCostMonthly || 35000) - Math.round(legislationExpCut * 0.35));
+
   const totalRevenue =
     iptu +
     iss +
@@ -2172,7 +2260,9 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
     cfemOuro +
     rendimentoFundoSoberano +
     lucroEstatais +
-    receitasEmprestimosRecebidos;
+    receitasEmprestimosRecebidos +
+    sovereignTradeDividendMonthly +
+    legislationRevBonus;
 
   // 2. Despesas Detalhadas
   // Folha de pagamento aumenta proporcionalmente ao piso salarial municipal
@@ -2280,11 +2370,17 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
     transporteEscolarMerenda +
     assistenciaSocialVulneraveis +
     subsidioEstatais +
-    amortizacaoDivida;
+    amortizacaoDivida +
+    sovereignDebtInterestMonthly +
+    inssDeficitMonthly +
+    armedForcesExpenseMonthly +
+    esplanadaCostMonthly +
+    criticalImportsCostMonthly -
+    Math.round(legislationExpCut * 0.65);
 
   const netMonthly = totalRevenue - totalExpenses;
 
-  // Ratios da LRF
+  // Ratios da LRF & Dívida
   const payrollRatio = Number(((payroll / Math.max(1, totalRevenue)) * 100).toFixed(1));
   const debtRatio = Number(((state.debt / Math.max(1, totalRevenue * 12)) * 100).toFixed(1));
 
@@ -2300,6 +2396,33 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
     fiscalRating = 'D';
   }
 
+  // Nota de Crédito Soberano Internacional (AAA, AA, A, BBB, BB, B, CCC, D)
+  let sovereignRating: 'AAA' | 'AA' | 'A' | 'BBB' | 'BB' | 'B' | 'CCC' | 'D' = 'A';
+  if (netMonthly > 140000 && netTradeBalanceBrl > 0 && debtRatio < 55) {
+    sovereignRating = 'AAA';
+  } else if (netMonthly > 60000 && netTradeBalanceBrl > 0 && debtRatio < 75) {
+    sovereignRating = 'AA';
+  } else if (netMonthly > 0 && debtRatio < 95) {
+    sovereignRating = 'A';
+  } else if (netMonthly > -40000 && debtRatio < 120) {
+    sovereignRating = 'BBB';
+  } else if (netMonthly > -90000 && debtRatio < 150) {
+    sovereignRating = 'BB';
+  } else if (debtRatio < 180) {
+    sovereignRating = 'B';
+  } else {
+    sovereignRating = 'CCC';
+  }
+
+  const updatedTradeBalance: NationalTradeBalanceState = {
+    ...currentTrade,
+    totalExportUsd: Math.round(totalExportUsd),
+    totalImportUsd: Math.round(totalImportUsd),
+    netTradeBalanceUsd,
+    netTradeBalanceBrl,
+    forexReservesUsd: Math.max(100000, currentTrade.forexReservesUsd + Math.round(netTradeBalanceUsd * 0.05)),
+  };
+
   return {
     ...state,
     monthlyRevenue: totalRevenue,
@@ -2309,6 +2432,14 @@ export function recalculateMunicipalFinances(state: PrefeitoCityState): Prefeito
     payrollRatio,
     debtRatio,
     fiscalRating,
+    sovereignRating,
+    sovereignDebt: sovereignDebtVal,
+    sovereignDebtInterestRateSelic: baseSelic,
+    sovereignDebtInterestMonthly,
+    inssDeficitMonthly,
+    armedForcesExpenseMonthly,
+    esplanadaCostMonthly,
+    tradeBalance: updatedTradeBalance,
     departmentBudgets: deptBudgets,
     taxRates,
     naturalResourcesStrategy: {
@@ -2715,6 +2846,414 @@ export function setNaturalResourcesStrategy(
     message: 'Diretriz estratégica de recursos minerais e energéticos atualizada com sucesso!',
   };
 }
+
+// =========================================================================
+// GESTÃO LEGISLATIVA PRESIDENCIAL: DECRETOS, LEIS & PECs
+// =========================================================================
+export function signPresidentialDecree(
+  state: PrefeitoCityState,
+  decreeId: string
+): { state: PrefeitoCityState; success: boolean; message: string } {
+  const agenda = state.legislativeAgenda || INITIAL_PRESIDENTIAL_LEGISLATION;
+  const item = agenda.find((i) => i.id === decreeId);
+  if (!item) {
+    return { state, success: false, message: 'Decreto não encontrado na pauta presidencial.' };
+  }
+  if (item.status === 'aprovada') {
+    return { state, success: false, message: 'Este Decreto já foi promulgado e está em vigor.' };
+  }
+
+  const cost = item.politicalCapitalCost || 0;
+  if (state.treasury < cost) {
+    return {
+      state,
+      success: false,
+      message: `Tesouro insuficiente para cobrir o custo administrativo/articulação de R$ ${cost.toLocaleString()} deste Decreto. Saldo atual: R$ ${state.treasury.toLocaleString()}.`,
+    };
+  }
+
+  const newTreasury = state.treasury - cost;
+  const updatedAgenda = agenda.map((leg) =>
+    leg.id === decreeId
+      ? { ...leg, status: 'aprovada' as const, votedDateStr: `${state.day}/${state.month}/${state.year}` }
+      : leg
+  );
+
+  const updatedSigned = Array.from(new Set([...(state.signedDecreeIds || []), decreeId]));
+  const newApproval = Math.min(100, Math.max(0, state.approvalRating + (item.impacts.approvalChange || 0)));
+  const newCongress = Math.min(100, Math.max(0, state.councilSupport + (item.impacts.congressSupportChange || 0)));
+  const newJobs = state.jobs + (item.impacts.jobsCreated || 0);
+
+  const gazetteArticle: GazetteArticle = {
+    id: 'gaz_dec_' + Date.now(),
+    title: `Caneta Presidencial: Assinado o ${item.numberStr}`,
+    source: 'Diário Oficial da União (DOU)',
+    type: 'decreto',
+    dateStr: `${state.day}/${state.month}/${state.year}`,
+    body: `O Presidente da República assinou no Palácio do Planalto o ${item.numberStr} - "${item.title}". A medida entra em vigor imediatamente com força de lei em todo o território nacional. ${item.detailedJustification}`,
+    impactSummary: item.impacts.customNote || `Promulgado com efeito executivo imediato.`,
+    timestamp: Date.now(),
+  };
+
+  const nextState: PrefeitoCityState = {
+    ...state,
+    treasury: newTreasury,
+    approvalRating: newApproval,
+    councilSupport: newCongress,
+    jobs: newJobs,
+    legislativeAgenda: updatedAgenda,
+    signedDecreeIds: updatedSigned,
+    gazetteFeed: [gazetteArticle, ...(state.gazetteFeed || [])].slice(0, 30),
+  };
+
+  return {
+    state: recalculateMunicipalFinances(nextState),
+    success: true,
+    message: `Sucesso! O ${item.numberStr} foi assinado com a caneta presidencial e já está em vigor em todo o país!`,
+  };
+}
+
+export function votePresidentialLaw(
+  state: PrefeitoCityState,
+  lawId: string
+): { state: PrefeitoCityState; success: boolean; message: string } {
+  const agenda = state.legislativeAgenda || INITIAL_PRESIDENTIAL_LEGISLATION;
+  const item = agenda.find((i) => i.id === lawId);
+  if (!item) {
+    return { state, success: false, message: 'Projeto de Lei não encontrado no Congresso Nacional.' };
+  }
+  if (item.status === 'aprovada') {
+    return { state, success: false, message: 'Esta Lei já foi aprovada pelo Congresso Nacional e sancionada.' };
+  }
+
+  const cost = item.politicalCapitalCost || 0;
+  if (state.treasury < cost) {
+    return {
+      state,
+      success: false,
+      message: `Tesouro insuficiente para articulação parlamentar no Congresso (R$ ${cost.toLocaleString()}). Saldo atual: R$ ${state.treasury.toLocaleString()}.`,
+    };
+  }
+
+  // Quórum: Maioria Simples (> 50% dos votos do Congresso)
+  const congressSupport = state.councilSupport || 50;
+  const minRequired = item.minCongressSupport || 50;
+  if (congressSupport < minRequired) {
+    return {
+      state,
+      success: false,
+      message: `Base parlamentar insuficiente! A aprovação desta Lei exige pelo menos ${minRequired}% de apoio no Congresso Nacional (sua base atual é de ${congressSupport}%). Articule com deputados e senadores primeiro!`,
+    };
+  }
+
+  const newTreasury = state.treasury - cost;
+  const updatedAgenda = agenda.map((leg) =>
+    leg.id === lawId
+      ? { ...leg, status: 'aprovada' as const, votedDateStr: `${state.day}/${state.month}/${state.year}` }
+      : leg
+  );
+
+  const updatedPassed = Array.from(new Set([...(state.passedLawIds || []), lawId]));
+  const newApproval = Math.min(100, Math.max(0, state.approvalRating + (item.impacts.approvalChange || 0)));
+  const newCongress = Math.min(100, Math.max(0, state.councilSupport + (item.impacts.congressSupportChange || 0)));
+  const newJobs = state.jobs + (item.impacts.jobsCreated || 0);
+
+  const gazetteArticle: GazetteArticle = {
+    id: 'gaz_lei_' + Date.now(),
+    title: `Congresso Nacional Aprova e Presidente Sanciona a ${item.numberStr}`,
+    source: 'Diário Oficial da União (DOU)',
+    type: 'decreto',
+    dateStr: `${state.day}/${state.month}/${state.year}`,
+    body: `Em sessão conjunta da Câmara dos Deputados e do Senado Federal, foi aprovada a ${item.numberStr} - "${item.title}". A lei foi prontamente sancionada pelo Presidente da República. ${item.detailedJustification}`,
+    impactSummary: item.impacts.customNote || `Aprovada por maioria no Parlamento.`,
+    timestamp: Date.now(),
+  };
+
+  const nextState: PrefeitoCityState = {
+    ...state,
+    treasury: newTreasury,
+    approvalRating: newApproval,
+    councilSupport: newCongress,
+    jobs: newJobs,
+    legislativeAgenda: updatedAgenda,
+    passedLawIds: updatedPassed,
+    gazetteFeed: [gazetteArticle, ...(state.gazetteFeed || [])].slice(0, 30),
+  };
+
+  return {
+    state: recalculateMunicipalFinances(nextState),
+    success: true,
+    message: `Vitória no Congresso Nacional! A ${item.numberStr} foi aprovada pelos parlamentares e sancionada pelo Presidente!`,
+  };
+}
+
+export function votePresidentialPec(
+  state: PrefeitoCityState,
+  pecId: string
+): { state: PrefeitoCityState; success: boolean; message: string } {
+  const agenda = state.legislativeAgenda || INITIAL_PRESIDENTIAL_LEGISLATION;
+  const item = agenda.find((i) => i.id === pecId);
+  if (!item) {
+    return { state, success: false, message: 'Proposta de Emenda Constitucional não encontrada.' };
+  }
+  if (item.status === 'aprovada') {
+    return { state, success: false, message: 'Esta PEC já foi promulgada e incorporada ao texto da Constituição Federal.' };
+  }
+
+  const cost = item.politicalCapitalCost || 0;
+  if (state.treasury < cost) {
+    return {
+      state,
+      success: false,
+      message: `Tesouro insuficiente para o grande acordo político da PEC (R$ ${cost.toLocaleString()}). Saldo atual: R$ ${state.treasury.toLocaleString()}.`,
+    };
+  }
+
+  // Quórum Qualificado de PEC: 3/5 dos votos (>= 60%)
+  const congressSupport = state.councilSupport || 50;
+  const minRequired = item.minCongressSupport || 60;
+  if (congressSupport < minRequired) {
+    return {
+      state,
+      success: false,
+      message: `Quórum Constitucional Insuficiente! A aprovação de uma PEC exige três quintos (pelo menos ${minRequired}%) de apoio qualificado no Congresso Nacional em dois turnos (sua base atual é de ${congressSupport}%). Aumente sua aprovação e articulação com as bancadas!`,
+    };
+  }
+
+  const newTreasury = state.treasury - cost;
+  const updatedAgenda = agenda.map((leg) =>
+    leg.id === pecId
+      ? { ...leg, status: 'aprovada' as const, votedDateStr: `${state.day}/${state.month}/${state.year}` }
+      : leg
+  );
+
+  const updatedPecs = Array.from(new Set([...(state.passedPecIds || []), pecId]));
+  const newApproval = Math.min(100, Math.max(0, state.approvalRating + (item.impacts.approvalChange || 0)));
+  const newCongress = Math.min(100, Math.max(0, state.councilSupport + (item.impacts.congressSupportChange || 0)));
+  const newJobs = state.jobs + (item.impacts.jobsCreated || 0);
+
+  const gazetteArticle: GazetteArticle = {
+    id: 'gaz_pec_' + Date.now(),
+    title: `Sessão Histórica: Congresso Promulga a ${item.numberStr}`,
+    source: 'Diário Oficial da União (DOU)',
+    type: 'decreto',
+    dateStr: `${state.day}/${state.month}/${state.year}`,
+    body: `O Plenário do Congresso Nacional promulgou em cerimônia solene a ${item.numberStr} - "${item.title}". Com quórum constitucional qualificado, a emenda altera a Carta Magna e estabelece novos pilares para o desenvolvimento e sustentabilidade soberana do país.`,
+    impactSummary: item.impacts.customNote || `Emenda Constitucional promulgada com 3/5 do Congresso.`,
+    timestamp: Date.now(),
+  };
+
+  const nextState: PrefeitoCityState = {
+    ...state,
+    treasury: newTreasury,
+    approvalRating: newApproval,
+    councilSupport: newCongress,
+    jobs: newJobs,
+    legislativeAgenda: updatedAgenda,
+    passedPecIds: updatedPecs,
+    gazetteFeed: [gazetteArticle, ...(state.gazetteFeed || [])].slice(0, 30),
+  };
+
+  return {
+    state: recalculateMunicipalFinances(nextState),
+    success: true,
+    message: `Dia Histórico para a Nação! A ${item.numberStr} superou os 3/5 de votos no Congresso Nacional e foi promulgada na Constituição!`,
+  };
+}
+
+// =========================================================================
+// GESTÃO DE COMÉRCIO EXTERIOR: COMMODITIES, TARIFAS & LEILÕES CAMBIAIS
+// =========================================================================
+export function updateTradeCommodityVolume(
+  state: PrefeitoCityState,
+  commodityId: string,
+  delta: number
+): { state: PrefeitoCityState; message: string } {
+  const currentTrade = state.tradeBalance || createInitialTradeBalanceState();
+  const updatedCommodities = (currentTrade.commodities || []).map((c) => {
+    if (c.id === commodityId) {
+      const newVol = Math.max(10, Math.min(c.baseVolumePerCycle * 3, c.currentVolume + delta));
+      return { ...c, currentVolume: newVol };
+    }
+    return c;
+  });
+
+  const nextTrade: NationalTradeBalanceState = {
+    ...currentTrade,
+    commodities: updatedCommodities,
+  };
+
+  const nextState: PrefeitoCityState = {
+    ...state,
+    tradeBalance: nextTrade,
+  };
+
+  return {
+    state: recalculateMunicipalFinances(nextState),
+    message: 'Volume comercial contratado atualizado com sucesso na Balança Comercial!',
+  };
+}
+
+export function toggleTradeCommodity(
+  state: PrefeitoCityState,
+  commodityId: string
+): { state: PrefeitoCityState; message: string } {
+  const currentTrade = state.tradeBalance || createInitialTradeBalanceState();
+  const updatedCommodities = (currentTrade.commodities || []).map((c) => {
+    if (c.id === commodityId) {
+      return { ...c, active: !c.active };
+    }
+    return c;
+  });
+
+  const nextTrade: NationalTradeBalanceState = {
+    ...currentTrade,
+    commodities: updatedCommodities,
+  };
+
+  const nextState: PrefeitoCityState = {
+    ...state,
+    tradeBalance: nextTrade,
+  };
+
+  return {
+    state: recalculateMunicipalFinances(nextState),
+    message: 'Fluxo da mercadoria atualizado na Balança Comercial!',
+  };
+}
+
+export function setImportTariffRate(
+  state: PrefeitoCityState,
+  ratePercent: number
+): { state: PrefeitoCityState; message: string } {
+  const clampedRate = Math.max(0, Math.min(45, ratePercent));
+  const currentTrade = state.tradeBalance || createInitialTradeBalanceState();
+  const nextTrade: NationalTradeBalanceState = {
+    ...currentTrade,
+    importTariffAveragePercent: clampedRate,
+  };
+
+  const gazetteArticle: GazetteArticle = {
+    id: 'gaz_tariff_' + Date.now(),
+    title: `Governo Federal Ajusta Alíquota Média de Importação para ${clampedRate}%`,
+    source: 'Diário Oficial da União (DOU)',
+    type: 'decreto',
+    dateStr: `${state.day}/${state.month}/${state.year}`,
+    body: `O Comitê de Gestão da Câmara de Comércio Exterior (CAMEX) fixou a alíquota média do Imposto de Importação em ${clampedRate}%. ${clampedRate > 15 ? 'A medida visa proteger a indústria doméstica e arrecadar divisas alfandegárias.' : 'A medida reduz tarifas e barateia insumos estrangeiros para fábricas e consumidores.'}`,
+    impactSummary: `Tarifa Média de Importação: ${clampedRate}%`,
+    timestamp: Date.now(),
+  };
+
+  const nextState: PrefeitoCityState = {
+    ...state,
+    tradeBalance: nextTrade,
+    gazetteFeed: [gazetteArticle, ...(state.gazetteFeed || [])].slice(0, 30),
+  };
+
+  return {
+    state: recalculateMunicipalFinances(nextState),
+    message: `Alíquota média de importação alfandegária ajustada para ${clampedRate}% com sucesso!`,
+  };
+}
+
+export function executeForexAuction(
+  state: PrefeitoCityState
+): { state: PrefeitoCityState; success: boolean; message: string } {
+  const currentTrade = state.tradeBalance || createInitialTradeBalanceState();
+  const reserves = currentTrade.forexReservesUsd || 1000000;
+  if (reserves < 300000) {
+    return {
+      state,
+      success: false,
+      message: 'Reservas cambiais em dólar insuficientes para realizar leilão no Banco Central (mínimo de US$ 300.000).',
+    };
+  }
+
+  // Venda de US$ 250.000 em leilão de linha
+  const auctionUsd = 250000;
+  const rate = currentTrade.dollarExchangeRate || 5.40;
+  const grossBrlProfit = Math.round(auctionUsd * rate);
+
+  const nextTrade: NationalTradeBalanceState = {
+    ...currentTrade,
+    forexReservesUsd: reserves - auctionUsd,
+    lastForexAuctionTimestamp: Date.now(),
+  };
+
+  const gazetteArticle: GazetteArticle = {
+    id: 'gaz_forex_' + Date.now(),
+    title: `Banco Central Conclui Leilão Cambial de Linha de US$ 250 Milhões`,
+    source: 'Banco Central do Brasil',
+    type: 'noticia',
+    dateStr: `${state.day}/${state.month}/${state.year}`,
+    body: `A mesa de operações de câmbio do Banco Central ofertou US$ 250.000.000 no mercado spot. A operação gerou arrecadação líquida de R$ ${grossBrlProfit.toLocaleString()} diretamente para o Tesouro Nacional e estabilizou a volatilidade do câmbio.`,
+    impactSummary: `+R$ ${grossBrlProfit.toLocaleString()} no caixa do Tesouro Nacional.`,
+    timestamp: Date.now(),
+  };
+
+  const nextState: PrefeitoCityState = {
+    ...state,
+    treasury: state.treasury + grossBrlProfit,
+    tradeBalance: nextTrade,
+    approvalRating: Math.min(100, state.approvalRating + 3),
+    gazetteFeed: [gazetteArticle, ...(state.gazetteFeed || [])].slice(0, 30),
+  };
+
+  return {
+    state: recalculateMunicipalFinances(nextState),
+    success: true,
+    message: `Leilão cambial concluído com êxito! O Banco Central vendeu reservas na cotação alta e creditou +R$ ${grossBrlProfit.toLocaleString()} no Tesouro Nacional!`,
+  };
+}
+
+export function signTradePartnerAgreement(
+  state: PrefeitoCityState,
+  partnerId: string
+): { state: PrefeitoCityState; success: boolean; message: string } {
+  const currentTrade = state.tradeBalance || createInitialTradeBalanceState();
+  const partner = (currentTrade.partners || []).find((p) => p.id === partnerId);
+  if (!partner) {
+    return { state, success: false, message: 'Parceiro comercial não encontrado.' };
+  }
+
+  const updatedPartners = (currentTrade.partners || []).map((p) => {
+    if (p.id === partnerId) {
+      return { ...p, tradeStatus: 'livre_comercio' as const };
+    }
+    return p;
+  });
+
+  const nextTrade: NationalTradeBalanceState = {
+    ...currentTrade,
+    partners: updatedPartners,
+  };
+
+  const gazetteArticle: GazetteArticle = {
+    id: 'gaz_partner_' + Date.now(),
+    title: `Tratado Diplomático: Acordo de Livre Comércio Ratificado com ${partner.countryName}`,
+    source: 'Ministério das Relações Exteriores (Itamaraty)',
+    type: 'decreto',
+    dateStr: `${state.day}/${state.month}/${state.year}`,
+    body: `Em solenidade no Palácio do Planalto, o Presidente da República e a delegação de ${partner.countryName} assinaram o Tratado de Livre Comércio Bilateral. Tarifas foram reduzidas em ${partner.tariffDiscountPercent}% e a demanda por exportações nacionais subiu ${partner.exportDemandBoostPercent}%.`,
+    impactSummary: `+${partner.exportDemandBoostPercent}% na demanda externa | Desconto tarifário de ${partner.tariffDiscountPercent}%`,
+    timestamp: Date.now(),
+  };
+
+  const nextState: PrefeitoCityState = {
+    ...state,
+    tradeBalance: nextTrade,
+    approvalRating: Math.min(100, state.approvalRating + 5),
+    councilSupport: Math.min(100, state.councilSupport + 4),
+    gazetteFeed: [gazetteArticle, ...(state.gazetteFeed || [])].slice(0, 30),
+  };
+
+  return {
+    state: recalculateMunicipalFinances(nextState),
+    success: true,
+    message: `Acordo de Livre Comércio ratificado com sucesso com ${partner.countryName}! A demanda internacional pelas exportações nacionais saltou!`,
+  };
+}
+
 
 export function buildHousingAction(
   state: PrefeitoCityState,
