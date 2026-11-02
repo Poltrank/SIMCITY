@@ -8,6 +8,7 @@ import {
   PrefeitoCityState,
   DispatchOutcome,
   IntermunicipalLoan,
+  PresidentialLegislationItem,
 } from './types/textGame';
 import {
   createInitialPrefeitoState,
@@ -31,6 +32,9 @@ import {
   signPresidentialDecree,
   votePresidentialLaw,
   votePresidentialPec,
+  submitCustomPresidentialLaw,
+  conductPlenaryVotingSession,
+  tickCongressVotingClock,
   updateTradeCommodityVolume,
   toggleTradeCommodity,
   setImportTariffRate,
@@ -40,7 +44,9 @@ import {
 import { useTextMultiplayer } from './hooks/useTextMultiplayer';
 import { sounds } from './audio/soundManager';
 
-import { MayorTopBar } from './components/textGame/MayorTopBar';
+import { MayorTopBar, GameActiveView } from './components/textGame/MayorTopBar';
+import { SimCityMapView } from './components/simcity/SimCityMapView';
+import { CountryMapView } from './components/simcity/CountryMapView';
 import { ActiveDispatchPanel } from './components/textGame/ActiveDispatchPanel';
 import { ActionCatalogView } from './components/textGame/ActionCatalogView';
 import { OfficialGazetteView } from './components/textGame/OfficialGazetteView';
@@ -88,7 +94,7 @@ export default function App() {
     return createInitialPrefeitoState({ cityName: 'Ratolândia', mayorName: 'Cássio Kenji' });
   });
 
-  const [activeView, setActiveView] = useState<'mesa' | 'secretarias' | 'politicas' | 'gazeta' | 'financas' | 'regional' | 'ranking' | 'negociar' | 'estatisticas'>('mesa');
+  const [activeView, setActiveView] = useState<GameActiveView>('cidade');
   const [activeModalOutcome, setActiveModalOutcome] = useState<DispatchOutcome | null>(null);
   const [isLoansModalOpen, setIsLoansModalOpen] = useState<boolean>(false);
   const [isEmergencyModalOpen, setIsEmergencyModalOpen] = useState<boolean>(false);
@@ -271,7 +277,26 @@ export default function App() {
           }
         }
 
-        return finalState;
+        // 3. Update 1-minute Congress Voting Session (50 Senators) & Laws Entering into Force in 1 Minute
+        const {
+          state: congressState,
+          votingTriggered,
+          newlyEffectiveLaws,
+        } = tickCongressVotingClock(finalState, 0.25);
+
+        if (votingTriggered) {
+          sounds.playFanfare();
+          showToast('🏛️ O Plenário de 50 Senadores concluiu a votação da pauta!', 'info');
+        }
+
+        if (newlyEffectiveLaws.length > 0) {
+          sounds.playVictory();
+          newlyEffectiveLaws.forEach((l) => {
+            showToast(`⚖️ Entrou em pleno vigor: ${l.numberStr} - "${l.title}"! Publicada no DOU.`, 'success');
+          });
+        }
+
+        return congressState;
       });
     }, 250);
 
@@ -501,25 +526,67 @@ export default function App() {
   // Ações Presidenciais: Decretos, Leis e PECs
   const handleSignDecree = useCallback((decreeId: string) => {
     setCityState((prev) => {
-      const updated = signPresidentialDecree(prev, decreeId);
-      showToast('Decreto Presidencial assinado e publicado no Diário Oficial!', 'success');
-      return updated;
+      const result = signPresidentialDecree(prev, decreeId);
+      if (result.success) {
+        showToast(result.message, 'success');
+      } else {
+        showToast(result.message, 'error');
+      }
+      return result.state;
     });
   }, []);
 
   const handleVoteLaw = useCallback((lawId: string) => {
     setCityState((prev) => {
-      const updated = votePresidentialLaw(prev, lawId);
-      showToast('Projeto de Lei aprovado pelo Congresso Nacional e sancionado!', 'success');
-      return updated;
+      const result = conductPlenaryVotingSession(prev, lawId);
+      if (result.result?.approved) {
+        sounds.playFanfare();
+        showToast(result.message, 'success');
+      } else {
+        sounds.playAlert();
+        showToast(result.message, 'error');
+      }
+      return result.state;
     });
   }, []);
 
   const handleVotePec = useCallback((pecId: string) => {
     setCityState((prev) => {
-      const updated = votePresidentialPec(prev, pecId);
-      showToast('Histórico! Emenda Constitucional (PEC) promulgada!', 'success');
-      return updated;
+      const result = conductPlenaryVotingSession(prev, pecId);
+      if (result.result?.approved) {
+        sounds.playVictory();
+        showToast(result.message, 'success');
+      } else {
+        sounds.playAlert();
+        showToast(result.message, 'error');
+      }
+      return result.state;
+    });
+  }, []);
+
+  const handleSubmitCustomLaw = useCallback((law: PresidentialLegislationItem) => {
+    setCityState((prev) => {
+      const result = submitCustomPresidentialLaw(prev, law);
+      showToast(result.message, 'success');
+      return result.state;
+    });
+  }, []);
+
+  const handleConvenePlenaryVoting = useCallback((lawId?: string) => {
+    setCityState((prev) => {
+      const result = conductPlenaryVotingSession(prev, lawId);
+      if (result.result) {
+        if (result.result.approved) {
+          sounds.playFanfare();
+          showToast(result.message, 'success');
+        } else {
+          sounds.playAlert();
+          showToast(result.message, 'error');
+        }
+      } else {
+        showToast(result.message, 'info');
+      }
+      return result.state;
     });
   }, []);
 
@@ -644,6 +711,39 @@ export default function App() {
 
       {/* Conteúdo Principal */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6">
+        {activeView === 'cidade' && (
+          <SimCityMapView
+            cityState={cityState}
+            onUpdateState={(newState) => {
+              setCityState(newState);
+              try {
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newState));
+                updateCurrentUserState(newState);
+              } catch (e) {}
+              saveStateOnline(newState);
+            }}
+            onShowToast={showToast}
+            onOpenLegislationModal={() => setIsLegislationModalOpen(true)}
+          />
+        )}
+
+        {activeView === 'pais' && (
+          <CountryMapView
+            cityState={cityState}
+            onUpdateState={(newState) => {
+              setCityState(newState);
+              try {
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newState));
+                updateCurrentUserState(newState);
+              } catch (e) {}
+              saveStateOnline(newState);
+            }}
+            onShowToast={showToast}
+            onOpenLegislationModal={() => setIsLegislationModalOpen(true)}
+            onOpenTradeModal={() => setIsTradeModalOpen(true)}
+          />
+        )}
+
         {activeView === 'mesa' && (
           <ActiveDispatchPanel
             dispatches={cityState.activeDispatches}
@@ -821,6 +921,8 @@ export default function App() {
         onSignDecree={handleSignDecree}
         onVoteLaw={handleVoteLaw}
         onVotePec={handleVotePec}
+        onSubmitCustomLaw={handleSubmitCustomLaw}
+        onConvenePlenaryVoting={handleConvenePlenaryVoting}
       />
 
       {/* Modal da Balança Comercial & Comércio Exterior */}

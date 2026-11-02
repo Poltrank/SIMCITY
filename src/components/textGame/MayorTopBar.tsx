@@ -35,10 +35,23 @@ import {
 import { PrefeitoCityState } from '../../types/textGame';
 import { sounds } from '../../audio/soundManager';
 
+export type GameActiveView =
+  | 'mesa'
+  | 'cidade'
+  | 'pais'
+  | 'secretarias'
+  | 'politicas'
+  | 'gazeta'
+  | 'financas'
+  | 'regional'
+  | 'ranking'
+  | 'negociar'
+  | 'estatisticas';
+
 interface MayorTopBarProps {
   state: PrefeitoCityState;
-  activeView: 'mesa' | 'secretarias' | 'politicas' | 'gazeta' | 'financas' | 'regional' | 'ranking' | 'negociar' | 'estatisticas';
-  setActiveView: (view: 'mesa' | 'secretarias' | 'politicas' | 'gazeta' | 'financas' | 'regional' | 'ranking' | 'negociar' | 'estatisticas') => void;
+  activeView: GameActiveView;
+  setActiveView: (view: GameActiveView) => void;
   isMuted: boolean;
   toggleMute: () => void;
   isMultiplayerConnected: boolean;
@@ -362,19 +375,62 @@ export const MayorTopBar: React.FC<MayorTopBarProps> = ({
             )}
           </button>
 
-          {/* Botão de Legislação: Decretos, Leis e PECs */}
+          {/* Visualizador Gráfico Estilo SimCity 2.5D da Cidade */}
+          <button
+            onClick={() => {
+              setActiveView('cidade');
+              sounds.playClick();
+            }}
+            className={`px-3 py-2 rounded-md text-xs md:text-sm font-bold flex items-center gap-2 transition-all whitespace-nowrap shadow-sm ${
+              activeView === 'cidade'
+                ? 'bg-emerald-500 text-slate-950 shadow-md font-black ring-2 ring-emerald-300'
+                : 'text-emerald-300 bg-emerald-950/60 hover:bg-emerald-900/80 border border-emerald-600/50'
+            }`}
+            title="Ver a cidade em gráficos 2.5D isométricos com zonas, carros, prédios e iluminação noturna"
+          >
+            <Building2 className="w-4 h-4 text-emerald-400" />
+            <span>Cidade (SimCity)</span>
+            <span className="px-1.5 py-0.2 text-[10px] font-black rounded-full bg-emerald-500 text-slate-950 font-mono">
+              2.5D
+            </span>
+          </button>
+
+          {/* Visualizador Estratégico Soberano do País (Brasil) */}
+          <button
+            onClick={() => {
+              setActiveView('pais');
+              sounds.playClick();
+            }}
+            className={`px-3 py-2 rounded-md text-xs md:text-sm font-bold flex items-center gap-2 transition-all whitespace-nowrap shadow-sm ${
+              activeView === 'pais'
+                ? 'bg-sky-500 text-slate-950 shadow-md font-black ring-2 ring-sky-300'
+                : 'text-sky-300 bg-sky-950/60 hover:bg-sky-900/80 border border-sky-600/50'
+            }`}
+            title="Ver o mapa soberano da República Federativa do Brasil, todos os 27 estados e rotas nacionais"
+          >
+            <Globe className="w-4 h-4 text-sky-400" />
+            <span>País (Brasil)</span>
+            <span className="px-1.5 py-0.2 text-[10px] font-black rounded-full bg-sky-500 text-slate-950 font-mono">
+              27 UFs
+            </span>
+          </button>
+
+          {/* Botão de Legislação: Decretos, Leis e PECs & 50 Senadores */}
           <button
             onClick={() => {
               sounds.playClick();
               onOpenLegislationModal?.();
             }}
             className="px-3 py-2 rounded-md text-xs md:text-sm font-bold flex items-center gap-2 transition-all whitespace-nowrap text-purple-300 bg-purple-950/60 hover:bg-purple-900/80 border border-purple-700/60 shadow-sm"
-            title="Assinar Decretos Presidenciais, votar Projetos de Lei e promulgar PECs"
+            title="Redigir Leis com IA, Plenário dos 50 Senadores e Votação a cada 1 Minuto"
           >
-            <Scroll className="w-4 h-4 text-purple-400" />
-            Leis & PECs
-            <span className="px-1.5 py-0.2 text-[10px] font-black rounded-full bg-purple-500 text-white">
-              {(state.signedDecreeIds || []).length + (state.passedLawIds || []).length + (state.passedPecIds || []).length}
+            <Scale className="w-4 h-4 text-purple-400" />
+            <span>Congresso & Leis (IA)</span>
+            <span className="px-1.5 py-0.2 text-[10px] font-black rounded-full bg-purple-500 text-white font-mono animate-pulse">
+              ⏱ {state.congressVotingSecondsRemaining ?? 60}s
+            </span>
+            <span className="px-1.5 py-0.2 text-[10px] font-black rounded-full bg-emerald-600 text-white">
+              {(state.signedDecreeIds || []).length + (state.passedLawIds || []).length + (state.passedPecIds || []).length} leis
             </span>
           </button>
 

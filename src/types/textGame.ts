@@ -407,6 +407,21 @@ export interface PrefeitoCityState {
   signedDecreeIds?: string[];
   passedLawIds?: string[];
   passedPecIds?: string[];
+
+  // Sessão Deliberativa do Congresso Nacional (Votações a cada 1 minuto com 50 Senadores)
+  congressVotingSecondsRemaining?: number; // 60s countdown
+  currentVotingLawId?: string | null;
+  lastVotingResult?: {
+    lawId: string;
+    lawTitle: string;
+    lawNumber: string;
+    lawType: 'lei' | 'pec' | 'decreto';
+    votesSim: number;
+    votesNao: number;
+    votesAbstencao: number;
+    approved: boolean;
+    timestamp: number;
+  };
 }
 
 export interface IntermunicipalLoan {
@@ -620,8 +635,25 @@ export interface PresidentialLegislationItem {
   minCongressSupport?: number; // % de apoio no Congresso exigido (ex: 50% ou 60%)
 
   // Status
-  status: 'disponivel' | 'em_votacao' | 'aprovada' | 'rejeitada';
+  status: 'disponivel' | 'na_fila_votacao' | 'em_votacao' | 'aprovada_aguardando_vigor' | 'aprovada' | 'rejeitada';
   votedDateStr?: string;
+
+  // Votação dos 50 Senadores
+  votesSim?: number;
+  votesNao?: number;
+  votesAbstencao?: number;
+  senatorVotes?: Record<string, { vote: 'sim' | 'nao' | 'abstencao'; quote: string }>;
+
+  // Entrada em Vigor no Minuto Seguinte (Vacatio Legis 1 minuto)
+  effectiveAtTimestamp?: number; // timestamp quando passa a vigorar (60s após aprovação)
+  secondsUntilEffective?: number; // contagem regressiva em segundos
+
+  // Criação Customizada por Inteligência Artificial (Gemini)
+  isCustomAiLaw?: boolean;
+  aiDraftPrompt?: string;
+  aiEmenta?: string;
+  aiConstitutionalOpinion?: string;
+  aiSenatorTendency?: any;
 
   // Efeitos Econômicos & Estruturais
   impacts: {

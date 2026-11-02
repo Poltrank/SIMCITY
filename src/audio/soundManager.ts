@@ -143,6 +143,10 @@ class SoundManager {
     } catch {}
   }
 
+  public playBulldozer() {
+    this.playDemolish();
+  }
+
   public playCash() {
     const ctx = this.getContext();
     if (!ctx) return;
@@ -330,6 +334,10 @@ class SoundManager {
   }
 
   public playCelebration() {
+    this.playFanfare();
+  }
+
+  public playVictory() {
     this.playFanfare();
   }
 

@@ -17,6 +17,7 @@ import {
 import { MUNICIPAL_ACTIONS } from '../data/municipalActions';
 import { INITIAL_PRESIDENTIAL_LEGISLATION } from '../data/presidentialLegislation';
 import { createInitialTradeBalanceState } from '../data/tradeCommodities';
+import { simulateSenatorsVote, PlenaryVoteResult, SENATORS_50 } from '../data/senatorsData';
 
 export const MONTH_NAMES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -362,6 +363,15 @@ export function sanitizePrefeitoState(state: PrefeitoCityState): PrefeitoCitySta
       cycleDurationSeconds: FISCAL_CYCLE_SECONDS,
       secondsRemaining,
     },
+    countryName: state.countryName ?? 'República Federativa do Brasil',
+    isPresidentialMode: true,
+    tradeBalance: state.tradeBalance ?? createInitialTradeBalanceState(),
+    legislativeAgenda: state.legislativeAgenda && state.legislativeAgenda.length > 0 ? state.legislativeAgenda : INITIAL_PRESIDENTIAL_LEGISLATION,
+    signedDecreeIds: state.signedDecreeIds ?? [],
+    passedLawIds: state.passedLawIds ?? [],
+    passedPecIds: state.passedPecIds ?? [],
+    congressVotingSecondsRemaining: state.congressVotingSecondsRemaining ?? 60,
+    currentVotingLawId: state.currentVotingLawId ?? null,
   };
 }
 
@@ -662,6 +672,8 @@ export function createInitialPrefeitoState(setup?: InitialMayorSetup): PrefeitoC
     signedDecreeIds: [],
     passedLawIds: [],
     passedPecIds: [],
+    congressVotingSecondsRemaining: 60,
+    currentVotingLawId: null,
   };
 }
 
@@ -3058,6 +3070,281 @@ export function votePresidentialPec(
     state: recalculateMunicipalFinances(nextState),
     success: true,
     message: `Dia Histórico para a Nação! A ${item.numberStr} superou os 3/5 de votos no Congresso Nacional e foi promulgada na Constituição!`,
+  };
+}
+
+// =========================================================================
+// PROTOCOLO DE LEIS DO PRESIDENTE (IA GEMINI) & VOTAÇÃO NO SENADO (50 SENADORES)
+// =========================================================================
+
+export function submitCustomPresidentialLaw(
+  state: PrefeitoCityState,
+  customLaw: PresidentialLegislationItem
+): { state: PrefeitoCityState; success: boolean; message: string } {
+  const agenda = state.legislativeAgenda || INITIAL_PRESIDENTIAL_LEGISLATION;
+
+  // Garantir status inicial
+  const preparedLaw: PresidentialLegislationItem = {
+    ...customLaw,
+    status: customLaw.type === 'decreto' ? 'disponivel' : 'na_fila_votacao',
+    isCustomAiLaw: true,
+  };
+
+  const updatedAgenda = [preparedLaw, ...agenda];
+
+  const gazetteArticle: GazetteArticle = {
+    id: 'gaz_law_sub_' + Date.now(),
+    title: `Palácio do Planalto Protocolou: ${preparedLaw.numberStr} - "${preparedLaw.title}"`,
+    source: 'Diário Oficial da União (DOU)',
+    type: 'noticia',
+    dateStr: `${state.day}/${state.month}/${state.year}`,
+    body: `O Presidente da República redigiu e enviou ao Poder Legislativo a matéria: "${preparedLaw.title}". ${preparedLaw.detailedJustification} A proposta aguarda deliberação no plenário de 50 senadores.`,
+    impactSummary: `Protocolada pelo Presidente | Pauta legislativa atualizada`,
+    timestamp: Date.now(),
+  };
+
+  const nextState: PrefeitoCityState = {
+    ...state,
+    legislativeAgenda: updatedAgenda,
+    gazetteFeed: [gazetteArticle, ...(state.gazetteFeed || [])].slice(0, 30),
+  };
+
+  return {
+    state: nextState,
+    success: true,
+    message: `Proposta "${preparedLaw.title}" protocolada com sucesso! ${
+      preparedLaw.type === 'decreto'
+        ? 'Pronta para ser assinada com a caneta presidencial.'
+        : 'Em pauta para a próxima votação de 1 minuto no Senado Federal!'
+    }`,
+  };
+}
+
+export function conductPlenaryVotingSession(
+  state: PrefeitoCityState,
+  specificLawId?: string
+): { state: PrefeitoCityState; result: PlenaryVoteResult | null; message: string } {
+  const agenda = state.legislativeAgenda || INITIAL_PRESIDENTIAL_LEGISLATION;
+
+  // Find law to vote
+  let targetLaw: PresidentialLegislationItem | undefined;
+  if (specificLawId) {
+    targetLaw = agenda.find((l) => l.id === specificLawId);
+  } else {
+    // Pick the first waiting in line or pending
+    targetLaw =
+      agenda.find((l) => l.status === 'na_fila_votacao') ||
+      agenda.find((l) => l.status === 'em_votacao') ||
+      agenda.find((l) => l.status === 'disponivel' && (l.type === 'lei' || l.type === 'pec'));
+  }
+
+  if (!targetLaw) {
+    return {
+      state,
+      result: null,
+      message: 'Nenhum Projeto de Lei ou PEC pendente na pauta do Plenário do Senado.',
+    };
+  }
+
+  // Decretos não são votados pelo parlamento (são atos do executivo)
+  if (targetLaw.type === 'decreto') {
+    return {
+      state,
+      result: null,
+      message: 'Decretos Presidenciais não dependem do Senado. Assine diretamente com a caneta presidencial!',
+    };
+  }
+
+  // Simular votos dos 50 senadores
+  const voteResult = simulateSenatorsVote(
+    targetLaw,
+    state.councilSupport || 50,
+    state.approvalRating || 50,
+    state.party || 'PSD'
+  );
+
+  const now = Date.now();
+  const effectiveAt = now + 60000; // Entra em vigor exatamente no minuto seguinte (60s)
+
+  const updatedAgenda = agenda.map((item) => {
+    if (item.id === targetLaw!.id) {
+      if (voteResult.approved) {
+        return {
+          ...item,
+          status: 'aprovada_aguardando_vigor' as const,
+          votedDateStr: `${state.day}/${state.month}/${state.year}`,
+          votesSim: voteResult.votesSim,
+          votesNao: voteResult.votesNao,
+          votesAbstencao: voteResult.votesAbstencao,
+          senatorVotes: voteResult.senatorVotes,
+          effectiveAtTimestamp: effectiveAt,
+          secondsUntilEffective: 60,
+        };
+      } else {
+        return {
+          ...item,
+          status: 'rejeitada' as const,
+          votedDateStr: `${state.day}/${state.month}/${state.year}`,
+          votesSim: voteResult.votesSim,
+          votesNao: voteResult.votesNao,
+          votesAbstencao: voteResult.votesAbstencao,
+          senatorVotes: voteResult.senatorVotes,
+        };
+      }
+    }
+    return item;
+  });
+
+  const gazetteArticle: GazetteArticle = {
+    id: 'gaz_plenary_' + Date.now(),
+    title: voteResult.approved
+      ? `Plenário Aprova: ${targetLaw.numberStr} (Votação: ${voteResult.votesSim} x ${voteResult.votesNao})`
+      : `Plenário Rejeita: ${targetLaw.numberStr} (Votação: ${voteResult.votesSim} x ${voteResult.votesNao})`,
+    source: 'Diário Oficial da União (DOU)',
+    type: voteResult.approved ? 'decreto' : 'alerta',
+    dateStr: `${state.day}/${state.month}/${state.year}`,
+    body: voteResult.approved
+      ? `Em sessão deliberativa com os 50 senadores da República, o Senado aprovou a matéria "${targetLaw.title}" (${targetLaw.numberStr}) por ${voteResult.votesSim} votos favoráveis, ${voteResult.votesNao} contrários e ${voteResult.votesAbstencao} abstenções. Quórum exigido: ${voteResult.requiredVotes} votos. Conforme o regimento, a lei entra em vigor no minuto seguinte!`
+      : `O Plenário do Senado rejeitou a matéria "${targetLaw.title}" (${targetLaw.numberStr}). A proposição obteve ${voteResult.votesSim} votos a favor e ${voteResult.votesNao} votos contra, insuficiente para atingir o quórum qualificado de ${voteResult.requiredVotes} senadores.`,
+    impactSummary: voteResult.approved
+      ? `Aprovada! Entra em vigor no minuto seguinte (60s) | Sim: ${voteResult.votesSim} | Não: ${voteResult.votesNao}`
+      : `Rejeitada pelo plenário | Sim: ${voteResult.votesSim} | Exigido: ${voteResult.requiredVotes}`,
+    timestamp: Date.now(),
+  };
+
+  const nextState: PrefeitoCityState = {
+    ...state,
+    legislativeAgenda: updatedAgenda,
+    lastVotingResult: {
+      lawId: targetLaw.id,
+      lawTitle: targetLaw.title,
+      lawNumber: targetLaw.numberStr,
+      lawType: targetLaw.type,
+      votesSim: voteResult.votesSim,
+      votesNao: voteResult.votesNao,
+      votesAbstencao: voteResult.votesAbstencao,
+      approved: voteResult.approved,
+      timestamp: Date.now(),
+    },
+    gazetteFeed: [gazetteArticle, ...(state.gazetteFeed || [])].slice(0, 30),
+  };
+
+  return {
+    state: nextState,
+    result: voteResult,
+    message: voteResult.approved
+      ? `Vitória! ${targetLaw.numberStr} foi APROVADO pelos 50 senadores (${voteResult.votesSim} votos a favor)! Entrará em vigor no minuto seguinte.`
+      : `Rejeitado! ${targetLaw.numberStr} obteve ${voteResult.votesSim} votos a favor (eram necessários ${voteResult.requiredVotes}).`,
+  };
+}
+
+export function tickCongressVotingClock(
+  state: PrefeitoCityState,
+  deltaSeconds = 1
+): { state: PrefeitoCityState; votingTriggered: boolean; newlyEffectiveLaws: PresidentialLegislationItem[] } {
+  let stateChanged = false;
+  const currentSeconds = state.congressVotingSecondsRemaining ?? 60;
+  let nextSeconds = currentSeconds - deltaSeconds;
+  let votingTriggered = false;
+  let workingState = state;
+  const newlyEffectiveLaws: PresidentialLegislationItem[] = [];
+
+  // 1. Verificar se o minuto do Congresso expirou para votar
+  if (nextSeconds <= 0) {
+    nextSeconds = 60;
+    stateChanged = true;
+
+    // Conduzir votação se houver matérias aguardando
+    const hasPendingBills = (workingState.legislativeAgenda || []).some(
+      (l) => (l.status === 'na_fila_votacao' || l.status === 'em_votacao') && (l.type === 'lei' || l.type === 'pec')
+    );
+
+    if (hasPendingBills) {
+      const voteOutput = conductPlenaryVotingSession(workingState);
+      if (voteOutput.result) {
+        workingState = voteOutput.state;
+        votingTriggered = true;
+      }
+    }
+  }
+
+  // 2. Verificar leis aprovadas aguardando vigor no minuto seguinte (Vacatio Legis de 60s)
+  const now = Date.now();
+  const agenda = workingState.legislativeAgenda || [];
+  let updatedSigned = [...(workingState.signedDecreeIds || [])];
+  let updatedLaws = [...(workingState.passedLawIds || [])];
+  let updatedPecs = [...(workingState.passedPecIds || [])];
+  let gazetteToAdd: GazetteArticle[] = [];
+  let bonusApproval = 0;
+  let bonusCongress = 0;
+  let bonusJobs = 0;
+
+  const nextAgenda = agenda.map((law) => {
+    if (law.status === 'aprovada_aguardando_vigor') {
+      const remainingSec = Math.max(0, Math.round(((law.effectiveAtTimestamp || (now + 60000)) - now) / 1000));
+      
+      if (remainingSec <= 0 || now >= (law.effectiveAtTimestamp || 0)) {
+        // ENTRA EM VIGOR NO MINUTO SEGUINTE!
+        stateChanged = true;
+        newlyEffectiveLaws.push(law);
+
+        if (law.type === 'lei') {
+          updatedLaws = Array.from(new Set([...updatedLaws, law.id]));
+        } else if (law.type === 'pec') {
+          updatedPecs = Array.from(new Set([...updatedPecs, law.id]));
+        } else {
+          updatedSigned = Array.from(new Set([...updatedSigned, law.id]));
+        }
+
+        bonusApproval += law.impacts.approvalChange || 0;
+        bonusCongress += law.impacts.congressSupportChange || 0;
+        bonusJobs += law.impacts.jobsCreated || 0;
+
+        gazetteToAdd.push({
+          id: 'gaz_vig_' + Date.now() + '_' + law.id,
+          title: `PUBLICADO NO DOU: ${law.numberStr} - "${law.title}" ENTRA EM VIGOR HOJE`,
+          source: 'Diário Oficial da União (DOU)',
+          type: 'celebracao',
+          dateStr: `${workingState.day}/${workingState.month}/${workingState.year}`,
+          body: `Transcorrido o período regulamentar de promulgação pelo Congresso Nacional, a matéria "${law.title}" (${law.numberStr}) entrou formalmente em pleno vigor em todo o território nacional. ${law.detailedJustification} Todos os órgãos e secretarias passam a executar as novas diretrizes.`,
+          impactSummary: law.impacts.customNote || `Em pleno vigor | Benefícios econômicos e sociais ativados`,
+          timestamp: Date.now(),
+        });
+
+        return {
+          ...law,
+          status: 'aprovada' as const,
+          secondsUntilEffective: 0,
+        };
+      } else {
+        return {
+          ...law,
+          secondsUntilEffective: remainingSec,
+        };
+      }
+    }
+    return law;
+  });
+
+  const intermediateState: PrefeitoCityState = {
+    ...workingState,
+    congressVotingSecondsRemaining: nextSeconds,
+    legislativeAgenda: nextAgenda,
+    signedDecreeIds: updatedSigned,
+    passedLawIds: updatedLaws,
+    passedPecIds: updatedPecs,
+    approvalRating: Math.min(100, Math.max(0, workingState.approvalRating + bonusApproval)),
+    councilSupport: Math.min(100, Math.max(0, workingState.councilSupport + bonusCongress)),
+    jobs: workingState.jobs + bonusJobs,
+    gazetteFeed: gazetteToAdd.length > 0 ? [...gazetteToAdd, ...(workingState.gazetteFeed || [])].slice(0, 30) : workingState.gazetteFeed,
+  };
+
+  const finalState = stateChanged ? recalculateMunicipalFinances(intermediateState) : intermediateState;
+
+  return {
+    state: finalState,
+    votingTriggered,
+    newlyEffectiveLaws,
   };
 }
 

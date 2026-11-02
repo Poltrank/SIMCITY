@@ -5,6 +5,16 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer as createViteServer } from 'vite';
+import { GoogleGenAI } from '@google/genai';
+
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+  httpOptions: {
+    headers: {
+      'User-Agent': 'aistudio-build',
+    },
+  },
+});
 
 const app = express();
 const server = http.createServer(app);
@@ -26,6 +36,204 @@ app.use(express.json());
 // API Health Check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
+});
+
+// Fallback intelligent analyzer when Gemini API is offline or without key
+function fallbackLawAnalysis(draftText: string, presidentialTitle?: string) {
+  const text = (draftText || presidentialTitle || '').toLowerCase();
+  
+  let type: 'lei' | 'pec' | 'decreto' = 'lei';
+  if (text.includes('constitui') || text.includes('pec') || text.includes('artigo') || text.includes('cláusula pétrea') || text.includes('reforma')) {
+    type = 'pec';
+  } else if (text.includes('decreto') || text.includes('emergên') || text.includes('caneta') || text.includes('imediato')) {
+    type = 'decreto';
+  }
+
+  let theme: 'economia' | 'comercio_exterior' | 'energia_mineracao' | 'trabalho_previdencia' | 'infraestrutura_defesa' | 'tributaria' = 'economia';
+  if (text.includes('imposto') || text.includes('tribut') || text.includes('isenção') || text.includes('taxa') || text.includes('irpf') || text.includes('icms')) {
+    theme = 'tributaria';
+  } else if (text.includes('export') || text.includes('import') || text.includes('dólar') || text.includes('câmbio') || text.includes('tarifa') || text.includes('camex')) {
+    theme = 'comercio_exterior';
+  } else if (text.includes('energia') || text.includes('petróleo') || text.includes('ouro') || text.includes('solar') || text.includes('usina') || text.includes('pré-sal')) {
+    theme = 'energia_mineracao';
+  } else if (text.includes('salário') || text.includes('aposentad') || text.includes('inss') || text.includes('emprego') || text.includes('trabalh') || text.includes('previdência')) {
+    theme = 'trabalho_previdencia';
+  } else if (text.includes('rodovia') || text.includes('defesa') || text.includes('exército') || text.includes('ponte') || text.includes('metrô') || text.includes('segurança')) {
+    theme = 'infraestrutura_defesa';
+  }
+
+  const randomNum = Math.floor(Math.random() * 850) + 120;
+  const numberStr = type === 'pec' ? `PEC nº ${Math.floor(Math.random() * 45) + 10}/2026` : type === 'decreto' ? `Decreto Presidencial nº ${11400 + randomNum}/2026` : `Projeto de Lei nº ${randomNum}/2026`;
+
+  // Impacts based on keywords
+  let monthlyRevenueBonus = 35000;
+  let monthlyExpenseReduction = 20000;
+  let exportBonusPercent = 0;
+  let importCostDiscountPercent = 0;
+  let approvalChange = 8;
+  let congressSupportChange = 5;
+  let jobsCreated = 850;
+  let inssDeficitReduction = 0;
+  let selicInterestCutBps = 0;
+
+  if (theme === 'tributaria') {
+    if (text.includes('isenção') || text.includes('redu') || text.includes('cort')) {
+      monthlyRevenueBonus = -45000;
+      approvalChange = 15;
+      jobsCreated = 1800;
+    } else {
+      monthlyRevenueBonus = 95000;
+      approvalChange = -6;
+      congressSupportChange = -4;
+    }
+  } else if (theme === 'comercio_exterior') {
+    exportBonusPercent = 8;
+    importCostDiscountPercent = 6;
+    monthlyRevenueBonus = 65000;
+    approvalChange = 9;
+  } else if (theme === 'energia_mineracao') {
+    monthlyRevenueBonus = 80000;
+    monthlyExpenseReduction = 35000;
+    jobsCreated = 2400;
+  } else if (theme === 'trabalho_previdencia') {
+    if (text.includes('aumento') || text.includes('piso') || text.includes('reajuste')) {
+      monthlyExpenseReduction = -50000;
+      approvalChange = 18;
+      jobsCreated = 1200;
+    } else {
+      inssDeficitReduction = 40000;
+      monthlyExpenseReduction = 45000;
+      approvalChange = -5;
+    }
+  } else if (theme === 'infraestrutura_defesa') {
+    monthlyExpenseReduction = 15000;
+    jobsCreated = 3200;
+    approvalChange = 11;
+  }
+
+  const titleWords = (presidentialTitle || draftText).split(' ').slice(0, 8).join(' ');
+  const capitalizedTitle = titleWords.charAt(0).toUpperCase() + titleWords.slice(1);
+
+  return {
+    title: capitalizedTitle,
+    numberStr,
+    type,
+    theme,
+    badge: theme === 'tributaria' ? '💰 Tributária' : theme === 'comercio_exterior' ? '🚢 Exterior' : theme === 'energia_mineracao' ? '⚡ Energia' : theme === 'trabalho_previdencia' ? '👥 Trabalho' : theme === 'infraestrutura_defesa' ? '🛡️ Defesa' : '📈 Economia',
+    description: draftText.length > 150 ? draftText.substring(0, 150) + '...' : draftText,
+    officialEmenta: `Dispõe sobre as diretrizes, providências de execução orçamentária e marco regulatório aplicável a: "${draftText}". Estabelece metas de desenvolvimento econômico nacional e responsabilidade fiscal.`,
+    detailedJustification: `Em consonância com as metas do Poder Executivo, esta proposição legislativa visa atender às demandas urgentes da sociedade brasileira, promovendo modernização institucional, atração de investimentos e equilíbrio fiscal sustentável. Aprovada pela assessoria econômica e técnica do Palácio do Planalto.`,
+    constitutionalAnalysis: `PARECER DA CCJ: Proposição considerada constitucional, jurídica e em estrita conformidade com os princípios da República Federativa do Brasil (Art. 1º a 5º da CF/88). Não viola cláusulas pétreas.`,
+    requiredQuorum: type === 'pec' ? 'tres_quintos' : type === 'decreto' ? 'caneta_presidencial' : 'maioria_simples',
+    politicalCapitalCost: type === 'pec' ? 120000 : type === 'decreto' ? 45000 : 70000,
+    minCongressSupport: type === 'pec' ? 60 : type === 'decreto' ? 0 : 50,
+    impacts: {
+      monthlyRevenueBonus,
+      monthlyExpenseReduction,
+      exportBonusPercent,
+      importCostDiscountPercent,
+      approvalChange,
+      congressSupportChange,
+      jobsCreated,
+      inssDeficitReduction,
+      selicInterestCutBps,
+      customNote: `Análise técnica aprovada: ${draftText.substring(0, 70)}...`,
+    },
+    senatorTendency: {
+      governistasSupportPercent: 88,
+      centraoSupportPercent: 62,
+      oposicaoSupportPercent: 30,
+      ruralistasStance: 'Favorável com compensações regionais',
+      trabalhistasStance: 'Apoio às medidas de fomento ao emprego',
+    },
+  };
+}
+
+// ENDPOINT: Gemini AI Law Analysis (/api/gemini/analyze-law)
+app.post('/api/gemini/analyze-law', async (req, res) => {
+  try {
+    const { draftText, presidentialTitle, currentTreasury, approvalRating, councilSupport } = req.body;
+    if (!draftText || typeof draftText !== 'string' || draftText.trim() === '') {
+      return res.status(400).json({ error: 'O texto do projeto de lei não pode estar vazio.' });
+    }
+
+    const cleanDraft = draftText.trim();
+    const cleanTitle = (presidentialTitle || cleanDraft.slice(0, 50)).trim();
+
+    // Check if API key is present
+    if (!process.env.GEMINI_API_KEY) {
+      console.log('[Gemini API] GEMINI_API_KEY is not set. Using built-in semantic legal analyzer.');
+      const fallbackResult = fallbackLawAnalysis(cleanDraft, cleanTitle);
+      return res.json({ success: true, analysis: fallbackResult, source: 'fallback_heuristic' });
+    }
+
+    const systemPrompt = `Você é o Consultor-Geral da República e Secretário Especial de Assuntos Jurídicos da Presidência da República do Brasil.
+O Presidente da República escreveu a seguinte proposta de lei / decreto / PEC:
+"${cleanDraft}" (Título proposto: "${cleanTitle}").
+
+Seu papel é analisar a proposta com extremo realismo político, econômico e constitucional brasileiro e gerar uma análise técnica detalhada em JSON estrito.
+
+Retorne EXATAMENTE este formato JSON:
+{
+  "title": "Título conciso da Proposta de Lei ou Emenda (ex: Marco Legal da Energia Solar ou Reforma Tributária de Consumo)",
+  "numberStr": "Número oficial, ex: 'PL nº 412/2026' ou 'PEC nº 34/2026' ou 'Decreto nº 11.450/2026'",
+  "type": "lei" ou "pec" ou "decreto" (use "pec" se envolver mudanças constitucionais profundas, "lei" para leis ordinárias/complementares, "decreto" para atos privativos do Executivo),
+  "theme": "economia" | "comercio_exterior" | "energia_mineracao" | "trabalho_previdencia" | "infraestrutura_defesa" | "tributaria",
+  "badge": "Emoji + 2 palavras (ex: '⚡ Energia Limpa', '💰 Isenção IR')",
+  "description": "Resumo executivo de 2 frases sobre o que a lei faz",
+  "officialEmenta": "Ementa oficial em linguagem jurídica legislativa brasileira (ex: 'Dispõe sobre...')",
+  "detailedJustification": "Justificativa detalhada de 1 parágrafo abordando o mérito público",
+  "constitutionalAnalysis": "Parecer sintético da CCJ sobre a constitucionalidade",
+  "requiredQuorum": "maioria_simples" (para lei) ou "tres_quintos" (para PEC) ou "caneta_presidencial" (para decreto),
+  "politicalCapitalCost": número inteiro em Reais (entre 30000 e 150000, custo de tramitação/articulação),
+  "minCongressSupport": número inteiro de 0 a 100 (% mínimo de base aliada necessária para aprovar),
+  "impacts": {
+    "monthlyRevenueBonus": número em R$ por mês (pode ser positivo se aumentar arrecadação ou negativo se conceder isenções, ex: 60000 ou -35000),
+    "monthlyExpenseReduction": número em R$ por mês (positivo se economizar gastos, negativo se criar novos gastos públicos, ex: 25000 ou -40000),
+    "exportBonusPercent": número de 0 a 30 (% de aumento nas exportações se aplicável),
+    "importCostDiscountPercent": número de 0 a 20 (% de redução nos custos de importação se aplicável),
+    "approvalChange": número de -25 a +25 (% de impacto na aprovação popular do Presidente),
+    "congressSupportChange": número de -20 a +20 (% de impacto nas alianças no Congresso),
+    "jobsCreated": número inteiro de empregos gerados ou perdidos (ex: 1500 ou -200),
+    "selicInterestCutBps": número inteiro em pontos-base de redução de juros (ex: 25, 50 ou 0),
+    "inssDeficitReduction": número em R$ de redução no rombo previdenciário (ex: 15000 ou 0),
+    "customNote": "Frase de impacto sobre o resultado prático para o cidadão"
+  },
+  "senatorTendency": {
+    "governistasSupportPercent": número de 0 a 100,
+    "centraoSupportPercent": número de 0 a 100,
+    "oposicaoSupportPercent": número de 0 a 100,
+    "ruralistasStance": "Frase sobre como a bancada do agronegócio reagirá",
+    "trabalhistasStance": "Frase sobre como sindicalistas e trabalhadores reagirão"
+  }
+}`;
+
+    const geminiResponse = await ai.models.generateContent({
+      model: 'gemini-3.8-flash',
+      contents: cleanDraft,
+      config: {
+        systemInstruction: systemPrompt,
+        responseMimeType: 'application/json',
+        temperature: 0.7,
+      },
+    });
+
+    const responseText = geminiResponse.text?.trim() || '{}';
+    let analysisData = null;
+    try {
+      analysisData = JSON.parse(responseText);
+    } catch (parseErr) {
+      console.warn('[Gemini API] Failed to parse JSON response directly, falling back:', parseErr);
+      analysisData = fallbackLawAnalysis(cleanDraft, cleanTitle);
+    }
+
+    return res.json({ success: true, analysis: analysisData, source: 'gemini-3.8-flash' });
+  } catch (err: any) {
+    console.error('[Gemini API] Error during law analysis:', err);
+    // Graceful fallback so game is uninterrupted
+    const fallbackResult = fallbackLawAnalysis(req.body?.draftText || '', req.body?.presidentialTitle);
+    return res.json({ success: true, analysis: fallbackResult, source: 'fallback_error', errorDetails: err.message });
+  }
 });
 
 // --- MULTIPLAYER ROOMS & TWO MAYORS STATE ---
